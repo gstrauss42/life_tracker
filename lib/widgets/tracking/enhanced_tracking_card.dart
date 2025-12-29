@@ -169,7 +169,7 @@ class _EnhancedTrackingCardState extends State<EnhancedTrackingCard>
                             _buildHeader(theme),
                             const Spacer(),
                             _buildValueDisplay(theme, displayValue, progress),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             _buildProgressBar(theme, constraints.maxWidth, progress),
                           ],
                         ),
@@ -270,6 +270,14 @@ class _EnhancedTrackingCardState extends State<EnhancedTrackingCard>
   }
 
   Widget _buildProgressBar(ThemeData theme, double width, double progress) {
+    // Guard against invalid width
+    if (width <= 24 || !width.isFinite) {
+      return const SizedBox(height: 32);
+    }
+    
+    final effectiveWidth = (width - 24).clamp(0.0, double.infinity);
+    final progressWidth = (progress * effectiveWidth).clamp(0.0, effectiveWidth);
+    
     return GestureDetector(
       onHorizontalDragStart: (details) => _handleDragStart(details, width),
       onHorizontalDragUpdate: (details) => _handleDragUpdate(details, width),
@@ -279,8 +287,8 @@ class _EnhancedTrackingCardState extends State<EnhancedTrackingCard>
       child: MouseRegion(
         cursor: SystemMouseCursors.grab,
         child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          height: 32,
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
@@ -296,7 +304,7 @@ class _EnhancedTrackingCardState extends State<EnhancedTrackingCard>
               AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 height: 24,
-                width: progress * (width - 24),
+                width: progressWidth,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -317,9 +325,14 @@ class _EnhancedTrackingCardState extends State<EnhancedTrackingCard>
   }
 
   Widget _buildDragHandle(ThemeData theme, double width, double progress) {
-    final trackWidth = width - 24;
+    // Guard against invalid width
+    if (width <= 24 || !width.isFinite) {
+      return const SizedBox.shrink();
+    }
+    
+    final trackWidth = (width - 24).clamp(0.0, double.infinity);
     const handleSize = 26.0;
-    final handleLeft = (progress * trackWidth - handleSize / 2).clamp(0.0, trackWidth - handleSize);
+    final handleLeft = (progress * trackWidth - handleSize / 2).clamp(0.0, (trackWidth - handleSize).clamp(0.0, double.infinity));
 
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 50),

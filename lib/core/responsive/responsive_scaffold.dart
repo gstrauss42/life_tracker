@@ -15,9 +15,9 @@ class NavDestination {
 }
 
 /// A responsive scaffold that switches between navigation patterns:
-/// - Mobile (< 600): BottomNavigationBar
-/// - Tablet (600-1200): NavigationRail (collapsible)
-/// - Desktop (> 1200): Full sidebar with labels
+/// - Mobile (< 768px): BottomNavigationBar
+/// - Tablet (768px - 1024px): NavigationRail (collapsible)
+/// - Desktop (>= 1024px): Full sidebar with labels
 class ResponsiveScaffold extends StatefulWidget {
   const ResponsiveScaffold({
     super.key,
@@ -119,6 +119,10 @@ class _ResponsiveScaffoldState extends State<ResponsiveScaffold>
   Widget _buildTabletLayout(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // On smaller tablets, keep rail collapsed by default
+    final shouldAllowExtend = screenWidth >= 900;
 
     return Scaffold(
       body: Row(
@@ -126,10 +130,13 @@ class _ResponsiveScaffoldState extends State<ResponsiveScaffold>
           AnimatedBuilder(
             animation: _railAnimation,
             builder: (context, child) {
+              // Ensure rail doesn't extend on smaller screens
+              final isExtended = shouldAllowExtend && _isRailExtended;
+              
               return NavigationRail(
                 selectedIndex: widget.selectedIndex,
                 onDestinationSelected: widget.onDestinationSelected,
-                extended: _isRailExtended,
+                extended: isExtended,
                 minExtendedWidth: 180,
                 minWidth: 72,
                 backgroundColor: colorScheme.surface,
@@ -141,11 +148,14 @@ class _ResponsiveScaffoldState extends State<ResponsiveScaffold>
                 selectedLabelTextStyle: TextStyle(
                   color: colorScheme.onSurface,
                   fontWeight: FontWeight.w600,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 unselectedLabelTextStyle: TextStyle(
                   color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 leading: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     if (widget.leading != null)
                       Padding(
@@ -153,14 +163,17 @@ class _ResponsiveScaffoldState extends State<ResponsiveScaffold>
                         child: widget.leading,
                       ),
                     const SizedBox(height: 8),
-                    _buildCollapseButton(colorScheme),
+                    if (shouldAllowExtend) _buildCollapseButton(colorScheme),
                   ],
                 ),
                 destinations: widget.destinations.map((d) {
                   return NavigationRailDestination(
                     icon: Icon(d.icon),
                     selectedIcon: Icon(d.selectedIcon),
-                    label: Text(d.label),
+                    label: Text(
+                      d.label,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   );
                 }).toList(),
               );

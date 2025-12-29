@@ -39,30 +39,30 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader(context),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             _buildTimeRangeSelector(context),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             _buildSummaryCards(context, stats),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             _buildSectionTitle(theme, 'Progress Over Time'),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildMainChart(context, config),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             _buildSectionTitle(theme, 'Average by Metric'),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildMetricAveragesGrid(context, config, stats),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             _buildSectionTitle(theme, 'Streaks & Achievements'),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildStreaksSection(context, config),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             _buildSectionTitle(theme, 'Nutrition Insights'),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildNutritionInsights(context),
           ],
         ),
@@ -114,7 +114,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   Widget _buildSectionTitle(ThemeData theme, String title) {
     return Text(
       title,
-      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+      style: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.2,
+      ),
     );
   }
 
@@ -130,13 +133,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           children: [
             Text(
               'Analytics',
-              style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.3,
+              ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               'Track your progress over time',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: colorScheme.onSurface.withValues(alpha: 0.6),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
           ],
@@ -147,8 +153,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               const SnackBar(content: Text('Export feature coming soon!')),
             );
           },
-          icon: const Icon(Icons.download, size: 18),
+          icon: const Icon(Icons.download, size: 16),
           label: const Text('Export'),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            textStyle: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
+          ),
         ),
       ],
     );
@@ -158,10 +168,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -178,7 +188,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final selected = _selectedDays == days;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 1),
       child: ChoiceChip(
         label: Text(label),
         selected: selected,
@@ -188,12 +198,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         },
         selectedColor: colorScheme.primaryContainer,
         labelStyle: TextStyle(
-          color: selected ? colorScheme.onPrimaryContainer : colorScheme.onSurface.withValues(alpha: 0.7),
-          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          color: selected ? colorScheme.onPrimaryContainer : colorScheme.onSurface.withValues(alpha: 0.6),
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          fontSize: 12,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
         side: BorderSide.none,
         showCheckmark: false,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
       ),
     );
   }
@@ -205,12 +219,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           child: _SummaryCard(
             title: 'Average Completion',
             value: '${(stats.avgCompletion * 100).toInt()}%',
-            icon: Icons.pie_chart,
+            icon: Icons.pie_chart_outline,
             color: const Color(0xFF4CAF50),
             subtitle: 'Last $_selectedDays days',
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: _SummaryCard(
             title: 'Current Streak',
@@ -220,22 +234,22 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             subtitle: '>50% completion',
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: _SummaryCard(
             title: 'Days Tracked',
             value: '${_logs.length}',
-            icon: Icons.calendar_month,
+            icon: Icons.calendar_today_outlined,
             color: const Color(0xFF2196F3),
             subtitle: 'This period',
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: _SummaryCard(
             title: 'Perfect Days',
             value: '${stats.perfectDays}',
-            icon: Icons.emoji_events,
+            icon: Icons.emoji_events_outlined,
             color: const Color(0xFF9C27B0),
             subtitle: '100% completion',
           ),
@@ -255,22 +269,23 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
       ),
       child: Container(
-        height: 300,
-        padding: const EdgeInsets.all(24),
+        height: 260,
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Daily Completion %',
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: colorScheme.onSurface.withValues(alpha: 0.6),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
+                letterSpacing: 0.3,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -278,7 +293,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   final completion = _getLogCompletion(log, config);
                   return Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 1.5),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -290,18 +305,18 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: colorScheme.primary,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(3),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           Text(
                             log.date.substring(8),
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurface.withValues(alpha: 0.5),
-                              fontSize: 10,
+                              color: colorScheme.onSurface.withValues(alpha: 0.4),
+                              fontSize: 9,
                             ),
                           ),
                         ],
@@ -330,9 +345,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: 2.2,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 2.5,
       children: [
         _MetricAverageCard(
           title: 'Water',
@@ -404,35 +419,35 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.restaurant, color: colorScheme.primary, size: 28),
+              child: Icon(Icons.restaurant, color: colorScheme.primary, size: 20),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     '$totalFoodEntries meals logged',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     'In the last $_selectedDays days',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.6),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.5),
                     ),
                   ),
                 ],
@@ -448,24 +463,28 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
       ),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
         child: Column(
           children: [
-            Icon(icon, size: 48, color: colorScheme.onSurface.withValues(alpha: 0.3)),
-            const SizedBox(height: 16),
+            Icon(icon, size: 36, color: colorScheme.onSurface.withValues(alpha: 0.25)),
+            const SizedBox(height: 12),
             Text(
               title,
-              style: theme.textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.6)),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               subtitle,
-              style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.4)),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.35),
+              ),
             ),
           ],
         ),
@@ -527,28 +546,44 @@ class _SummaryCard extends StatelessWidget {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
               ),
-              child: Icon(icon, color: color, size: 20),
+              child: Icon(icon, color: color, size: 16),
             ),
-            const SizedBox(height: 16),
-            Text(value, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(title, style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.6))),
-            const SizedBox(height: 8),
-            Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.4))),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              title,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.4),
+                letterSpacing: 0.2,
+              ),
+            ),
           ],
         ),
       ),
@@ -581,50 +616,71 @@ class _MetricAverageCard extends StatelessWidget {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 18),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(title, style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.6))),
-                  const SizedBox(height: 4),
-                  Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  Text(
+                    title,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.5),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(goal, style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.4))),
+                  Text(
+                    value,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    goal,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.35),
+                      fontSize: 11,
+                    ),
+                  ),
                 ],
               ),
             ),
             SizedBox(
-              width: 50,
-              height: 50,
+              width: 38,
+              height: 38,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
                   CircularProgressIndicator(
                     value: progress.clamp(0.0, 1.0),
-                    strokeWidth: 4,
-                    backgroundColor: color.withValues(alpha: 0.1),
+                    strokeWidth: 3,
+                    backgroundColor: color.withValues(alpha: 0.08),
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                   ),
                   Text(
                     '${(progress.clamp(0.0, 1.0) * 100).toInt()}%',
-                    style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 10),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 9,
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
                   ),
                 ],
               ),
@@ -656,11 +712,11 @@ class _StreaksCard extends StatelessWidget {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: Row(
           children: [
             _StreakItem(title: 'Water', icon: Icons.water_drop, color: const Color(0xFF29B6F6), streak: waterStreak),
@@ -679,8 +735,8 @@ class _StreaksCard extends StatelessWidget {
   Widget _buildDivider(ColorScheme colorScheme) {
     return Container(
       width: 1,
-      height: 60,
-      color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+      height: 48,
+      color: colorScheme.outlineVariant.withValues(alpha: 0.3),
     );
   }
 }
@@ -707,17 +763,26 @@ class _StreakItem extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: Icon(icon, color: color, size: 18),
           ),
-          const SizedBox(height: 12),
-          Text('$streak days', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(title, style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.6))),
+          const SizedBox(height: 10),
+          Text(
+            '$streak days',
+            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colorScheme.onSurface.withValues(alpha: 0.5),
+              letterSpacing: 0.2,
+            ),
+          ),
         ],
       ),
     );

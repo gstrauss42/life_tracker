@@ -809,6 +809,7 @@ class MultiDayNutritionOverview {
   /// Generate a concise summary for AI context
   String toAISummary() {
     final buffer = StringBuffer();
+    final rec = NutritionSummary.recommendedDaily;
     
     if (!hasEnoughData) {
       buffer.writeln('Limited data: Only $daysWithData day(s) of food tracking available.');
@@ -818,30 +819,88 @@ class MultiDayNutritionOverview {
       return buffer.toString();
     }
 
-    buffer.writeln('Nutrition overview (last $daysAnalyzed days, $daysWithData days with data):');
-    buffer.writeln('');
-    buffer.writeln('Daily averages:');
-    buffer.writeln('- Calories: ${averageIntake.calories.toStringAsFixed(0)} kcal');
-    buffer.writeln('- Protein: ${averageIntake.protein.toStringAsFixed(0)}g (goal: 50g)');
-    buffer.writeln('- Fiber: ${averageIntake.fiber.toStringAsFixed(0)}g (goal: 28g)');
-    
-    if (consistentDeficiencies.isNotEmpty) {
-      buffer.writeln('');
-      buffer.writeln('Consistent deficiencies (nutrients low on most days):');
-      for (final def in consistentDeficiencies.take(4)) {
-        buffer.writeln('- ${def.name}: averaging ${def.averageIntake.toStringAsFixed(0)}${def.unit} vs ${def.recommended.toStringAsFixed(0)}${def.unit} goal (low on ${def.deficientDays}/${def.totalDays} days)');
+    // Today's macro status is most important for immediate suggestions
+    if (todayIntake.calories > 0) {
+      buffer.writeln("TODAY'S MACRO STATUS (this is what matters most for suggestions):");
+      
+      // Calculate percentages
+      final calPct = (todayIntake.calories / rec.calories * 100).round();
+      final proteinPct = (todayIntake.protein / rec.protein * 100).round();
+      final carbsPct = (todayIntake.carbs / rec.carbs * 100).round();
+      final fatPct = (todayIntake.fat / rec.fat * 100).round();
+      final fiberPct = (todayIntake.fiber / rec.fiber * 100).round();
+      
+      // Show what's exceeded vs what's still needed
+      final exceeded = <String>[];
+      final stillNeeded = <String>[];
+      
+      if (calPct >= 100) {
+        exceeded.add('Calories ($calPct%)');
+      } else {
+        stillNeeded.add('Calories ($calPct% - need ${(rec.calories - todayIntake.calories).toStringAsFixed(0)} more)');
       }
-    } else {
+      
+      if (proteinPct >= 100) {
+        exceeded.add('Protein ($proteinPct%)');
+      } else {
+        stillNeeded.add('Protein ($proteinPct% - need ${(rec.protein - todayIntake.protein).toStringAsFixed(0)}g more)');
+      }
+      
+      if (carbsPct >= 100) {
+        exceeded.add('Carbs ($carbsPct%)');
+      } else {
+        stillNeeded.add('Carbs ($carbsPct% - need ${(rec.carbs - todayIntake.carbs).toStringAsFixed(0)}g more)');
+      }
+      
+      if (fatPct >= 100) {
+        exceeded.add('Fat ($fatPct%)');
+      } else {
+        stillNeeded.add('Fat ($fatPct% - need ${(rec.fat - todayIntake.fat).toStringAsFixed(0)}g more)');
+      }
+      
+      if (fiberPct >= 100) {
+        exceeded.add('Fiber ($fiberPct%)');
+      } else {
+        stillNeeded.add('Fiber ($fiberPct% - need ${(rec.fiber - todayIntake.fiber).toStringAsFixed(0)}g more)');
+      }
+      
+      if (exceeded.isNotEmpty) {
+        buffer.writeln('ALREADY MET/EXCEEDED (avoid adding more): ${exceeded.join(", ")}');
+      }
+      if (stillNeeded.isNotEmpty) {
+        buffer.writeln('STILL NEED MORE OF: ${stillNeeded.join(", ")}');
+      }
+      
+      // Today's micronutrient deficiencies
+      final microDeficiencies = <String>[];
+      if (todayIntake.vitaminC < rec.vitaminC * 0.7) microDeficiencies.add('Vitamin C (${(todayIntake.vitaminC / rec.vitaminC * 100).round()}%)');
+      if (todayIntake.vitaminD < rec.vitaminD * 0.7) microDeficiencies.add('Vitamin D (${(todayIntake.vitaminD / rec.vitaminD * 100).round()}%)');
+      if (todayIntake.vitaminA < rec.vitaminA * 0.7) microDeficiencies.add('Vitamin A (${(todayIntake.vitaminA / rec.vitaminA * 100).round()}%)');
+      if (todayIntake.vitaminE < rec.vitaminE * 0.7) microDeficiencies.add('Vitamin E (${(todayIntake.vitaminE / rec.vitaminE * 100).round()}%)');
+      if (todayIntake.vitaminK < rec.vitaminK * 0.7) microDeficiencies.add('Vitamin K (${(todayIntake.vitaminK / rec.vitaminK * 100).round()}%)');
+      if (todayIntake.calcium < rec.calcium * 0.7) microDeficiencies.add('Calcium (${(todayIntake.calcium / rec.calcium * 100).round()}%)');
+      if (todayIntake.iron < rec.iron * 0.7) microDeficiencies.add('Iron (${(todayIntake.iron / rec.iron * 100).round()}%)');
+      if (todayIntake.potassium < rec.potassium * 0.7) microDeficiencies.add('Potassium (${(todayIntake.potassium / rec.potassium * 100).round()}%)');
+      if (todayIntake.magnesium < rec.magnesium * 0.7) microDeficiencies.add('Magnesium (${(todayIntake.magnesium / rec.magnesium * 100).round()}%)');
+      if (todayIntake.folate < rec.folate * 0.7) microDeficiencies.add('Folate (${(todayIntake.folate / rec.folate * 100).round()}%)');
+      
+      if (microDeficiencies.isNotEmpty) {
+        buffer.writeln('');
+        buffer.writeln('LOW MICRONUTRIENTS TODAY: ${microDeficiencies.join(", ")}');
+      }
+      
       buffer.writeln('');
-      buffer.writeln('No consistent deficiencies detected - nutrition generally balanced!');
+    } else {
+      buffer.writeln('No food logged today yet.');
+      buffer.writeln('');
     }
 
-    if (todayIntake.calories > 0) {
-      buffer.writeln('');
-      buffer.writeln('Today so far: ${todayIntake.calories.toStringAsFixed(0)} cal, ${todayIntake.protein.toStringAsFixed(0)}g protein, ${todayIntake.fiber.toStringAsFixed(0)}g fiber');
-    } else {
-      buffer.writeln('');
-      buffer.writeln('No food logged today yet.');
+    // Weekly context (secondary)
+    if (consistentDeficiencies.isNotEmpty) {
+      buffer.writeln('Weekly patterns (nutrients consistently low):');
+      for (final def in consistentDeficiencies.take(4)) {
+        buffer.writeln('- ${def.name}: averaging ${def.averageIntake.toStringAsFixed(0)}${def.unit} vs ${def.recommended.toStringAsFixed(0)}${def.unit} goal');
+      }
     }
 
     return buffer.toString();

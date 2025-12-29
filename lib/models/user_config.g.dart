@@ -31,13 +31,23 @@ class UserConfigAdapter extends TypeAdapter<UserConfig> {
       socialIncrementMinutes: fields[11] as int,
       proteinGoalGrams: fields[12] as double,
       calorieGoal: fields[13] as int,
+      locationAddress: fields[14] as String?,
+      locationCity: fields[15] as String?,
+      locationCountry: fields[16] as String?,
+      locationLat: fields[17] as double?,
+      locationLng: fields[18] as double?,
+      availableCategories: (fields[19] as List?)?.cast<String>(),
+      categoriesLastUpdated: fields[20] as DateTime?,
+      fitnessGoalName: fields[21] as String?,
+      fitnessLevelName: fields[22] as String?,
+      preferredWorkoutDuration: fields[23] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserConfig obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(24)
       ..writeByte(0)
       ..write(obj.waterGoalLiters)
       ..writeByte(1)
@@ -65,7 +75,27 @@ class UserConfigAdapter extends TypeAdapter<UserConfig> {
       ..writeByte(12)
       ..write(obj.proteinGoalGrams)
       ..writeByte(13)
-      ..write(obj.calorieGoal);
+      ..write(obj.calorieGoal)
+      ..writeByte(14)
+      ..write(obj.locationAddress)
+      ..writeByte(15)
+      ..write(obj.locationCity)
+      ..writeByte(16)
+      ..write(obj.locationCountry)
+      ..writeByte(17)
+      ..write(obj.locationLat)
+      ..writeByte(18)
+      ..write(obj.locationLng)
+      ..writeByte(19)
+      ..write(obj.availableCategories)
+      ..writeByte(20)
+      ..write(obj.categoriesLastUpdated)
+      ..writeByte(21)
+      ..write(obj.fitnessGoalName)
+      ..writeByte(22)
+      ..write(obj.fitnessLevelName)
+      ..writeByte(23)
+      ..write(obj.preferredWorkoutDuration);
   }
 
   @override

@@ -725,32 +725,66 @@ Use standard USDA database values. Numbers only, no units in the JSON.
 
     final nutritionContext = overview.toAISummary();
 
-    final prompt = '''
-You're a helpful nutritionist. Based on the user's nutrition patterns over the past week, suggest $count different specific, practical meals or snacks.
+    // Build preferences section
+    String preferencesSection = '';
+    if (preferences != null && preferences.isNotEmpty) {
+      preferencesSection = '''
 
-$nutritionContext
-${preferences != null ? '\nDietary preferences: $preferences' : ''}
+USER TASTE PREFERENCES (use to customize suggestions):
+$preferences
+
+These preferences help personalize HOW you address the nutritional needs. Find alternative ingredients that:
+- Still provide the needed nutrients
+- Incorporate foods they feel like eating (when possible)
+- NEVER include foods they want to avoid
+''';
+    }
+
+    final prompt = '''
+You're a helpful nutritionist. Based on the user's CURRENT nutrition status today, suggest $count different specific, practical meals or snacks.
+
+$nutritionContext$preferencesSection
+
+PRIMARY GOAL: Address nutritional deficiencies identified above.
+SECONDARY GOAL: Customize suggestions based on user taste preferences (if provided).
+
+CRITICAL RULES:
+- FIRST: Identify which nutrients are lacking and need to be addressed
+- THEN: Find meals that provide those nutrients while respecting taste preferences
+- If a macro is ALREADY MET/EXCEEDED, DO NOT suggest meals high in that nutrient!
+- For example: If protein is at 150%, suggest carb-focused meals like fruit, grains, vegetables - NOT protein dishes
+- If calories are exceeded, suggest low-calorie nutrient-dense options like salads, fruits, vegetables
+- PRIORITIZE fixing the "STILL NEED MORE OF" nutrients and "LOW MICRONUTRIENTS"
+- Suggest foods rich in the specific vitamins/minerals that are low${preferences != null ? '\n- When user has preferences: find ALTERNATIVE ingredients that provide the same nutrients but match their taste preferences\n- NEVER suggest foods they want to avoid - find substitutes that provide similar nutrition' : ''}
 
 Requirements:
 - Provide exactly $count different meal suggestions
 - Format: "Meal Name: Brief description" (one per line, numbered)
 - Keep each to 1-2 sentences
-- Be specific about key ingredients
-- Focus on their consistent deficiencies
-- Vary cuisines and meal types (breakfast, lunch, dinner, snack)
+- Be specific about key ingredients and what nutrients they provide
+- Focus on what they STILL NEED, avoid what they've EXCEEDED
+- Vary meal types (snack, light meal, etc.)
 - IMPORTANT: Plain text only, NO JSON, NO quotes around text, NO markdown
 
 Respond in this EXACT format:
-1. Spinach & Feta Omelet: A 3-egg omelet with spinach, feta, and tomatoes for iron and calcium.
-2. Salmon Buddha Bowl: Grilled salmon over quinoa with edamame and avocado for protein and omega-3s.
-3. Greek Yogurt Parfait: Greek yogurt layered with berries, granola, and honey for protein and fiber.
-4. Chickpea Curry: Hearty chickpea curry with spinach over brown rice for iron and fiber.
+1. Meal Name: Description focusing on the nutrients it provides.
+2. Meal Name: Description focusing on the nutrients it provides.
 ''';
 
     try {
       final response = await _callAI(prompt);
-      return _parseMultipleSuggestions(response, count);
+      debugPrint('═══════════════════════════════════════════════════════════');
+      debugPrint('MEAL SUGGESTIONS - Raw AI response:');
+      debugPrint(response);
+      debugPrint('═══════════════════════════════════════════════════════════');
+      final parsed = _parseMultipleSuggestions(response, count);
+      debugPrint('MEAL SUGGESTIONS - Parsed ${parsed.length} suggestions');
+      for (var i = 0; i < parsed.length; i++) {
+        debugPrint('  ${i + 1}. ${parsed[i]}');
+      }
+      return parsed;
     } catch (e) {
+      debugPrint('MEAL SUGGESTIONS ERROR: $e');
       return ['Unable to generate recommendations. Please try again.'];
     }
   }
@@ -767,23 +801,9 @@ Respond in this EXACT format:
     // Try to parse as JSON first (AI might return JSON despite instructions)
     try {
       final decoded = jsonDecode(cleaned);
-      if (decoded is Map<String, dynamic>) {
-        // Look for an array field
-        for (final value in decoded.values) {
-          if (value is List) {
-            return value
-                .map((item) => _cleanSuggestionText(item.toString()))
-                .where((s) => s.isNotEmpty && s.contains(':'))
-                .take(expectedCount)
-                .toList();
-          }
-        }
-      } else if (decoded is List) {
-        return decoded
-            .map((item) => _cleanSuggestionText(item.toString()))
-            .where((s) => s.isNotEmpty && s.contains(':'))
-            .take(expectedCount)
-            .toList();
+      final suggestions = _extractSuggestionsFromJson(decoded);
+      if (suggestions.isNotEmpty) {
+        return suggestions.take(expectedCount).toList();
       }
     } catch (_) {
       // Not JSON, parse as plain text
@@ -795,6 +815,10 @@ Respond in this EXACT format:
 
     for (final line in lines) {
       final trimmed = _cleanSuggestionText(line);
+      // Skip JSON-like lines (keys like "field_name": or just braces/brackets)
+      if (_isJsonArtifact(trimmed)) {
+        continue;
+      }
       if (trimmed.isNotEmpty && trimmed.contains(':')) {
         suggestions.add(trimmed);
       }
@@ -806,6 +830,101 @@ Respond in this EXACT format:
     }
 
     return suggestions.take(expectedCount).toList();
+  }
+
+  /// Check if a line looks like a JSON artifact rather than a meal suggestion
+  bool _isJsonArtifact(String text) {
+    final trimmed = text.trim();
+    // Empty or just punctuation
+    if (trimmed.isEmpty || RegExp(r'^[\[\]\{\},]+$').hasMatch(trimmed)) {
+      return true;
+    }
+    // Looks like a JSON key (snake_case or camelCase ending with quote-colon)
+    if (RegExp(r'^"?[a-z_][a-z0-9_]*"?\s*:\s*[\[\{]?$', caseSensitive: false).hasMatch(trimmed)) {
+      return true;
+    }
+    // Just a number or boolean
+    if (RegExp(r'^(null|true|false|\d+\.?\d*)$').hasMatch(trimmed)) {
+      return true;
+    }
+    // Very short text that's likely a JSON value (under 3 chars or just digits)
+    if (trimmed.length < 3 || RegExp(r'^\d+$').hasMatch(trimmed)) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Recursively extract meal suggestions from JSON structure
+  List<String> _extractSuggestionsFromJson(dynamic json) {
+    final results = <String>[];
+    
+    if (json is List) {
+      for (final item in json) {
+        if (item is String && item.contains(':') && !_isJsonArtifact(item)) {
+          results.add(_cleanSuggestionText(item));
+        } else if (item is Map<String, dynamic>) {
+          // Try to extract meal name and description from object
+          final extracted = _extractMealFromObject(item);
+          if (extracted != null) {
+            results.add(extracted);
+          }
+        } else {
+          results.addAll(_extractSuggestionsFromJson(item));
+        }
+      }
+    } else if (json is Map<String, dynamic>) {
+      // Look for common array field names
+      final arrayKeys = ['suggestions', 'meals', 'meal_suggestions', 'recommendations', 'ideas', 'items', 'results'];
+      for (final key in arrayKeys) {
+        if (json.containsKey(key) && json[key] is List) {
+          results.addAll(_extractSuggestionsFromJson(json[key]));
+          if (results.isNotEmpty) return results;
+        }
+      }
+      // Search all values for arrays
+      for (final value in json.values) {
+        if (value is List || value is Map) {
+          results.addAll(_extractSuggestionsFromJson(value));
+          if (results.isNotEmpty) return results;
+        }
+      }
+    }
+    
+    return results;
+  }
+
+  /// Extract meal suggestion from a JSON object with name/description fields
+  String? _extractMealFromObject(Map<String, dynamic> obj) {
+    // Common field name patterns for meal name
+    final nameKeys = ['name', 'meal', 'meal_name', 'title', 'dish'];
+    // Common field name patterns for description
+    final descKeys = ['description', 'desc', 'details', 'info', 'summary', 'about'];
+    
+    String? name;
+    String? description;
+    
+    for (final key in nameKeys) {
+      if (obj.containsKey(key) && obj[key] is String) {
+        name = obj[key] as String;
+        break;
+      }
+    }
+    
+    for (final key in descKeys) {
+      if (obj.containsKey(key) && obj[key] is String) {
+        description = obj[key] as String;
+        break;
+      }
+    }
+    
+    if (name != null && name.isNotEmpty) {
+      if (description != null && description.isNotEmpty) {
+        return '$name: $description';
+      }
+      return name;
+    }
+    
+    return null;
   }
 
   /// Clean up a single suggestion text

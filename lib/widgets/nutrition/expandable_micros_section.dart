@@ -210,66 +210,75 @@ class _MicroChip extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: data.isLow
-            ? Colors.orange.withValues(alpha: 0.08)
-            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: data.isLow
-              ? Colors.orange.withValues(alpha: 0.3)
-              : colorScheme.outlineVariant.withValues(alpha: 0.3),
-        ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: 100,
+        maxWidth: 140,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                data.label,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurface.withValues(alpha: 0.6),
-                  fontWeight: FontWeight.w500,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: data.isLow
+              ? Colors.orange.withValues(alpha: 0.08)
+              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: data.isLow
+                ? Colors.orange.withValues(alpha: 0.3)
+                : colorScheme.outlineVariant.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    data.label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              if (data.isLow) ...[
-                const SizedBox(width: 4),
-                Icon(Icons.warning_amber, size: 12, color: Colors.orange.shade600),
+                if (data.isLow) ...[
+                  const SizedBox(width: 4),
+                  Icon(Icons.warning_amber, size: 12, color: Colors.orange.shade600),
+                ],
               ],
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${data.formattedCurrent}${data.unit}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: data.isLow ? Colors.orange.shade700 : data.color,
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    '${data.formattedCurrent}${data.unit}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: data.isLow ? Colors.orange.shade700 : data.color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '/ ${data.formattedGoal}',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurface.withValues(alpha: 0.4),
+                const SizedBox(width: 4),
+                Text(
+                  '/ ${data.formattedGoal}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          SizedBox(
-            width: 80,
-            child: ClipRRect(
+              ],
+            ),
+            const SizedBox(height: 4),
+            ClipRRect(
               borderRadius: BorderRadius.circular(2),
               child: LinearProgressIndicator(
-                value: (data.percentage / 100).clamp(0, 1),
+                value: (data.percentage / 100).clamp(0.0, 1.0),
                 minHeight: 4,
                 backgroundColor: data.color.withValues(alpha: 0.15),
                 valueColor: AlwaysStoppedAnimation<Color>(
@@ -277,8 +286,8 @@ class _MicroChip extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

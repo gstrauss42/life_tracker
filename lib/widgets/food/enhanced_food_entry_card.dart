@@ -29,10 +29,6 @@ class _EnhancedFoodEntryCardState extends State<EnhancedFoodEntryCard> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final hasOriginalInput = widget.entry.originalInput != null &&
-        widget.entry.originalInput!.isNotEmpty &&
-        widget.entry.originalInput != widget.entry.name;
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -62,7 +58,7 @@ class _EnhancedFoodEntryCardState extends State<EnhancedFoodEntryCard> {
                   _buildIcon(colorScheme),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildContent(theme, colorScheme, hasOriginalInput),
+                    child: _buildContent(theme, colorScheme),
                   ),
                   _buildCaloriesBadge(theme, colorScheme),
                   _buildMenuButton(context, colorScheme),
@@ -100,32 +96,38 @@ class _EnhancedFoodEntryCardState extends State<EnhancedFoodEntryCard> {
   Widget _buildContent(
     ThemeData theme,
     ColorScheme colorScheme,
-    bool hasOriginalInput,
   ) {
     final macros = _buildMacrosText();
+    
+    // Parse the original input to extract meal name and ingredients
+    final parsed = _parseOriginalInput();
+    final displayName = parsed.mealName ?? widget.entry.name;
+    final ingredients = parsed.ingredients;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          widget.entry.name,
+          displayName,
           style: theme.textTheme.bodyMedium?.copyWith(
             fontWeight: FontWeight.w600,
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        if (hasOriginalInput) ...[
-          const SizedBox(height: 3),
-          Text(
-            widget.entry.originalInput!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurface.withValues(alpha: 0.5),
-              height: 1.3,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
+        if (ingredients.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          ...ingredients.map((ingredient) {
+            return Text(
+              ingredient,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
+                height: 1.3,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            );
+          }),
         ],
         if (macros.isNotEmpty) ...[
           const SizedBox(height: 6),
@@ -152,6 +154,60 @@ class _EnhancedFoodEntryCardState extends State<EnhancedFoodEntryCard> {
         ],
       ],
     );
+  }
+
+  /// Parse originalInput to extract meal name and ingredients list
+  _ParsedFoodInput _parseOriginalInput() {
+    final input = widget.entry.originalInput;
+    if (input == null || input.isEmpty) {
+      return _ParsedFoodInput(null, []);
+    }
+
+    String? mealName;
+    List<String> ingredients = [];
+
+    // Split by newlines to handle multi-line input
+    final lines = input.split('\n');
+    
+    for (final line in lines) {
+      final trimmed = line.trim();
+      
+      // Check for "Meal: " prefix
+      if (trimmed.toLowerCase().startsWith('meal:')) {
+        mealName = trimmed.substring(5).trim();
+      }
+      // Check for "Ingredients: " prefix
+      else if (trimmed.toLowerCase().startsWith('ingredients:')) {
+        final ingredientsPart = trimmed.substring(12).trim();
+        // Split by comma and clean up each ingredient
+        ingredients = ingredientsPart
+            .split(',')
+            .map((i) => i.trim())
+            .where((i) => i.isNotEmpty)
+            .toList();
+      }
+    }
+
+    // If no structured format found, try to parse as single line with both parts
+    if (mealName == null && ingredients.isEmpty) {
+      // Try to find "Meal:" and "Ingredients:" in a single string
+      final mealMatch = RegExp(r'Meal:\s*([^,\n]+)', caseSensitive: false).firstMatch(input);
+      final ingredientsMatch = RegExp(r'Ingredients:\s*(.+)', caseSensitive: false).firstMatch(input);
+      
+      if (mealMatch != null) {
+        mealName = mealMatch.group(1)?.trim();
+      }
+      if (ingredientsMatch != null) {
+        final ingredientsPart = ingredientsMatch.group(1)?.trim() ?? '';
+        ingredients = ingredientsPart
+            .split(',')
+            .map((i) => i.trim())
+            .where((i) => i.isNotEmpty)
+            .toList();
+      }
+    }
+
+    return _ParsedFoodInput(mealName, ingredients);
   }
 
   Widget _buildCaloriesBadge(ThemeData theme, ColorScheme colorScheme) {
@@ -272,6 +328,12 @@ class _MacroInfo {
   const _MacroInfo(this.text, this.color);
   final String text;
   final Color color;
+}
+
+class _ParsedFoodInput {
+  const _ParsedFoodInput(this.mealName, this.ingredients);
+  final String? mealName;
+  final List<String> ingredients;
 }
 
 

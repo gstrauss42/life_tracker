@@ -37,11 +37,12 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final width = MediaQuery.of(context).size.width;
-    final isCompact = Breakpoints.isMobile(width);
     // Watch the providers directly so the UI updates when food is added/deleted
     final log = ref.watch(dailyLogProvider);
     final config = ref.watch(userConfigProvider);
 
+    final padding = Breakpoints.getContentPadding(width);
+    
     return Container(
       color: colorScheme.surface,
       child: Column(
@@ -49,7 +50,7 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
           _buildHeader(context, theme, colorScheme),
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(isCompact ? 16 : 20),
+              padding: EdgeInsets.all(padding),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -60,7 +61,9 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
                   ExpandableMicrosSection(nutrition: log.nutritionSummary),
                   const SizedBox(height: 24),
                   // Food suggestions section
-                  const FoodSuggestionsSection(),
+                  FoodSuggestionsSection(
+                    selectedDate: widget.selectedDate ?? DateTime.now(),
+                  ),
                   const SizedBox(height: 24),
                   // Food log section
                   _buildFoodLogSection(context, theme, colorScheme, log),
@@ -152,16 +155,27 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
         if (width <= 0 || !width.isFinite) {
           return const SizedBox.shrink();
         }
-        // 4 cards on wider screens, 2 on narrow
-        final crossAxisCount = width > 500 ? 4 : 2;
-        final spacing = (crossAxisCount - 1) * 10.0;
-        // Ensure cardWidth is never negative
-        final cardWidth = ((width - spacing) / crossAxisCount).clamp(0.0, double.infinity);
-        final cardHeight = cardWidth * 1.1;
+        
+        // Responsive column count based on width
+        int crossAxisCount;
+        if (width < 280) {
+          crossAxisCount = 1;
+        } else if (width < 400) {
+          crossAxisCount = 2;
+        } else {
+          crossAxisCount = 4;
+        }
+        
+        const spacing = 10.0;
+        final totalSpacing = (crossAxisCount - 1) * spacing;
+        
+        // Calculate card dimensions with safety checks
+        final cardWidth = ((width - totalSpacing) / crossAxisCount).clamp(80.0, 200.0);
+        final cardHeight = (cardWidth * 1.15).clamp(100.0, 180.0);
 
         return Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: spacing,
+          runSpacing: spacing,
           children: [
             SizedBox(
               width: cardWidth,
@@ -173,6 +187,7 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
                 unit: '',
                 color: const Color(0xFFFF6B35),
                 icon: Icons.local_fire_department,
+                isCompact: crossAxisCount >= 4,
               ),
             ),
             SizedBox(
@@ -185,6 +200,7 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
                 unit: 'g',
                 color: const Color(0xFFE91E63),
                 icon: Icons.egg_alt,
+                isCompact: crossAxisCount >= 4,
               ),
             ),
             SizedBox(
@@ -197,6 +213,7 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
                 unit: 'g',
                 color: const Color(0xFF2196F3),
                 icon: Icons.grain,
+                isCompact: crossAxisCount >= 4,
               ),
             ),
             SizedBox(
@@ -209,6 +226,7 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
                 unit: 'g',
                 color: const Color(0xFF9C27B0),
                 icon: Icons.opacity,
+                isCompact: crossAxisCount >= 4,
               ),
             ),
           ],
@@ -359,6 +377,7 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
   ) async {
     final config = ref.read(userConfigProvider);
     final notifier = ref.read(dailyLogProvider.notifier);
+    final selectedDate = widget.selectedDate ?? DateTime.now();
 
     _showLoadingSnackbar(context, ingredients.length);
 
@@ -381,6 +400,8 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
         );
 
         await notifier.addFood(entry);
+        // Clear meal suggestions when food is added
+        ref.read(mealSuggestionsProvider.notifier).clearSuggestions(selectedDate);
         _showSuccessSnackbar(context, result.name, result.calories, result.protein);
       } else {
         final entry = FoodEntry(
@@ -390,6 +411,8 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
           originalInput: description,
         );
         await notifier.addFood(entry);
+        // Clear meal suggestions when food is added
+        ref.read(mealSuggestionsProvider.notifier).clearSuggestions(selectedDate);
         _showNoApiKeySnackbar(context);
       }
     } catch (e) {
@@ -400,6 +423,8 @@ class _FoodDetailViewState extends ConsumerState<FoodDetailView> {
         originalInput: description,
       );
       await notifier.addFood(entry);
+      // Clear meal suggestions when food is added
+      ref.read(mealSuggestionsProvider.notifier).clearSuggestions(selectedDate);
       _showErrorSnackbar(context, e);
     }
   }

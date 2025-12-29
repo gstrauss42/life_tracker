@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/responsive/responsive.dart';
+import '../../providers/navigation_provider.dart';
 import '../home/home_screen.dart';
 import '../analytics/analytics_screen.dart';
 import '../settings/settings_screen.dart';
@@ -15,7 +16,6 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  int _selectedIndex = 0;
   late final DetailPanelController _detailController;
 
   static const List<NavDestination> _destinations = [
@@ -60,11 +60,12 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final selectedIndex = ref.watch(selectedTabProvider);
 
     return ResponsiveScaffold(
-      selectedIndex: _selectedIndex,
+      selectedIndex: selectedIndex,
       onDestinationSelected: (index) {
-        setState(() => _selectedIndex = index);
+        ref.read(selectedTabProvider.notifier).state = index;
         // Close detail panel when switching tabs
         if (_detailController.isOpen) {
           _detailController.close();
@@ -76,7 +77,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         controller: _detailController,
         masterContent: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
-          child: _getScreen(_selectedIndex),
+          child: _getScreen(selectedIndex),
         ),
       ),
     );
