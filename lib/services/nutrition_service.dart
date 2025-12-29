@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/models.dart';
 
@@ -15,6 +15,144 @@ class NutritionService {
   final String? apiKey;
   final String provider;
 
+  /// Parse user input to extract food name and weight in grams
+  /// Handles formats like "150g chicken", "chicken 150g", "2 eggs", "100ml milk"
+  _ParsedFoodInput _parseInputWithWeight(String input) {
+    final trimmed = input.trim();
+    
+    // Pattern: number + unit at start (e.g., "150g chicken", "100ml milk", "2 eggs")
+    final startPattern = RegExp(r'^(\d+(?:\.\d+)?)\s*(g|kg|oz|lb|ml|l|cups?|tbsp|tsp|units?|pieces?|slices?|eggs?)?\s+(.+)$', caseSensitive: false);
+    // Pattern: number + unit at end (e.g., "chicken 150g")
+    final endPattern = RegExp(r'^(.+?)\s+(\d+(?:\.\d+)?)\s*(g|kg|oz|lb|ml|l|cups?|tbsp|tsp|units?|pieces?|slices?|eggs?)?$', caseSensitive: false);
+    
+    // Try start pattern first
+    var match = startPattern.firstMatch(trimmed);
+    if (match != null) {
+      final amount = double.tryParse(match.group(1)!) ?? 100;
+      final unit = match.group(2)?.toLowerCase() ?? 'g';
+      final foodName = match.group(3)!.trim();
+      return _ParsedFoodInput(foodName, _convertToGrams(amount, unit));
+    }
+    
+    // Try end pattern
+    match = endPattern.firstMatch(trimmed);
+    if (match != null) {
+      final foodName = match.group(1)!.trim();
+      final amount = double.tryParse(match.group(2)!) ?? 100;
+      final unit = match.group(3)?.toLowerCase() ?? 'g';
+      return _ParsedFoodInput(foodName, _convertToGrams(amount, unit));
+    }
+    
+    // No weight found - assume 100g (will show per-100g values)
+    return _ParsedFoodInput(trimmed, 100);
+  }
+
+  /// Parse AI response containing per-100g nutrition values
+  FoodNutritionResult _parseResponsePer100g(String response, String originalName) {
+    try {
+      var cleaned = response.trim();
+      
+      // Remove markdown code blocks if present
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replaceAll(RegExp(r'^```\w*\n?'), '').replaceAll(RegExp(r'\n?```$'), '');
+      }
+      
+      // Try to extract JSON if there's text around it
+      final jsonMatch = RegExp(r'\{[^{}]*\}').firstMatch(cleaned);
+      if (jsonMatch != null) {
+        cleaned = jsonMatch.group(0)!;
+      }
+
+      final data = jsonDecode(cleaned) as Map<String, dynamic>;
+      
+      // Debug: log what we received
+      debugPrint('PARSED: ${data.keys.length} fields for $originalName');
+      debugPrint('MICROS: Ca=${data['calcium']} Fe=${data['iron']} B12=${data['vitaminB12']} Mg=${data['magnesium']} Zn=${data['zinc']}');
+
+      return FoodNutritionResult(
+        name: data['name'] as String? ?? originalName,
+        servingSize: 100, // Per 100g reference
+        servingUnit: 'g',
+        calories: (data['calories'] as num?)?.toDouble(),
+        protein: (data['protein'] as num?)?.toDouble(),
+        carbs: (data['carbs'] as num?)?.toDouble(),
+        fat: (data['fat'] as num?)?.toDouble(),
+        fiber: (data['fiber'] as num?)?.toDouble(),
+        sugar: (data['sugar'] as num?)?.toDouble(),
+        sodium: (data['sodium'] as num?)?.toDouble(),
+        vitaminC: (data['vitaminC'] as num?)?.toDouble(),
+        vitaminD: (data['vitaminD'] as num?)?.toDouble(),
+        calcium: (data['calcium'] as num?)?.toDouble(),
+        iron: (data['iron'] as num?)?.toDouble(),
+        potassium: (data['potassium'] as num?)?.toDouble(),
+        healthScore: (data['healthScore'] as num?)?.toDouble(),
+        vitaminA: (data['vitaminA'] as num?)?.toDouble(),
+        vitaminE: (data['vitaminE'] as num?)?.toDouble(),
+        vitaminK: (data['vitaminK'] as num?)?.toDouble(),
+        vitaminB1: (data['vitaminB1'] as num?)?.toDouble(),
+        vitaminB2: (data['vitaminB2'] as num?)?.toDouble(),
+        vitaminB3: (data['vitaminB3'] as num?)?.toDouble(),
+        vitaminB6: (data['vitaminB6'] as num?)?.toDouble(),
+        vitaminB12: (data['vitaminB12'] as num?)?.toDouble(),
+        folate: (data['folate'] as num?)?.toDouble(),
+        magnesium: (data['magnesium'] as num?)?.toDouble(),
+        zinc: (data['zinc'] as num?)?.toDouble(),
+        phosphorus: (data['phosphorus'] as num?)?.toDouble(),
+        selenium: (data['selenium'] as num?)?.toDouble(),
+        iodine: (data['iodine'] as num?)?.toDouble(),
+        omega3: (data['omega3'] as num?)?.toDouble(),
+      );
+    } catch (e) {
+      return FoodNutritionResult(
+        name: originalName,
+        error: 'Failed to parse nutrition data: $e',
+      );
+    }
+  }
+
+  /// Scale per-100g nutrition values to actual serving weight
+  FoodNutritionResult _scaleNutrition(FoodNutritionResult per100g, double grams) {
+    if (per100g.hasError) return per100g;
+    
+    final multiplier = grams / 100.0;
+    
+    double? scale(double? value) => value != null ? value * multiplier : null;
+    
+    return FoodNutritionResult(
+      name: per100g.name,
+      servingSize: grams,
+      servingUnit: 'g',
+      calories: scale(per100g.calories),
+      protein: scale(per100g.protein),
+      carbs: scale(per100g.carbs),
+      fat: scale(per100g.fat),
+      fiber: scale(per100g.fiber),
+      sugar: scale(per100g.sugar),
+      sodium: scale(per100g.sodium),
+      vitaminC: scale(per100g.vitaminC),
+      vitaminD: scale(per100g.vitaminD),
+      calcium: scale(per100g.calcium),
+      iron: scale(per100g.iron),
+      potassium: scale(per100g.potassium),
+      healthScore: per100g.healthScore, // Don't scale health score
+      vitaminA: scale(per100g.vitaminA),
+      vitaminE: scale(per100g.vitaminE),
+      vitaminK: scale(per100g.vitaminK),
+      vitaminB1: scale(per100g.vitaminB1),
+      vitaminB2: scale(per100g.vitaminB2),
+      vitaminB3: scale(per100g.vitaminB3),
+      vitaminB6: scale(per100g.vitaminB6),
+      vitaminB12: scale(per100g.vitaminB12),
+      folate: scale(per100g.folate),
+      magnesium: scale(per100g.magnesium),
+      zinc: scale(per100g.zinc),
+      phosphorus: scale(per100g.phosphorus),
+      selenium: scale(per100g.selenium),
+      iodine: scale(per100g.iodine),
+      omega3: scale(per100g.omega3),
+    );
+  }
+
   /// Analyze a food description and return estimated nutrition data
   Future<FoodNutritionResult> analyzeFood(String foodDescription) async {
 
@@ -22,45 +160,49 @@ class NutritionService {
       throw Exception('API key not configured. Please set your API key in Settings.');
     }
 
+    // Parse input to extract weight if specified
+    final parsed = _parseInputWithWeight(foodDescription);
+    final foodName = parsed.foodName;
+    final requestedGrams = parsed.grams;
+
     final prompt = '''
-You are a nutrition calculator. Calculate accurate nutrition for this food.
+Return complete USDA nutrition data for "$foodName" per 100g. ALL fields are REQUIRED with accurate non-zero values.
 
-Input: $foodDescription
+RESPOND WITH ONLY THIS JSON (no text before or after):
+{"name":"$foodName","calories":0,"protein":0,"carbs":0,"fat":0,"fiber":0,"sugar":0,"sodium":0,"vitaminC":0,"vitaminD":0,"calcium":0,"iron":0,"potassium":0,"vitaminA":0,"vitaminE":0,"vitaminK":0,"vitaminB1":0,"vitaminB2":0,"vitaminB3":0,"vitaminB6":0,"vitaminB12":0,"folate":0,"magnesium":0,"zinc":0,"phosphorus":0,"selenium":0,"iodine":0,"omega3":0,"healthScore":7}
 
-Instructions:
-1. If weights are specified (e.g. "500g chicken"), calculate nutrition for that EXACT weight
-2. Use standard nutrition database values (USDA) per 100g, then scale to actual weight
-3. For multiple ingredients, calculate each separately then SUM all values
-4. If no weight specified, estimate a typical serving size
+Replace all 0s with actual USDA values per 100g. Units: calories=kcal, protein/carbs/fat/fiber/sugar/omega3=g, sodium/calcium/iron/potassium/magnesium/zinc/phosphorus=mg, vitaminC/vitaminE/vitaminB1/vitaminB2/vitaminB3/vitaminB6=mg, vitaminD/vitaminA/vitaminK/vitaminB12/folate/selenium/iodine=mcg.
 
-Be accurate - protein especially matters. For meats, remember raw protein content is typically 20-31g per 100g depending on the cut.
-
-Respond with ONLY this JSON (no other text):
-{
-  "name": "short meal name",
-  "servingSize": <total grams>,
-  "servingUnit": "g",
-  "calories": <number>,
-  "protein": <number>,
-  "carbs": <number>,
-  "fat": <number>,
-  "fiber": <number>,
-  "sugar": <number>,
-  "sodium": <number>,
-  "vitaminC": <number>,
-  "vitaminD": <number>,
-  "calcium": <number>,
-  "iron": <number>,
-  "potassium": <number>,
-  "healthScore": <1-10>
-}
+Most whole foods contain measurable amounts of most nutrients. Return accurate values, not zeros.
 ''';
 
     try {
       final response = await _callAI(prompt);
-      final result = _parseResponse(response, foodDescription);
+      debugPrint('═══════════════════════════════════════════════════════════');
+      debugPrint('NUTRITION SERVICE - Raw AI response for "$foodName":');
+      debugPrint(response);
+      debugPrint('═══════════════════════════════════════════════════════════');
+      final per100g = _parseResponsePer100g(response, foodName);
+      
+      // Check if micronutrients are missing and log
+      final missingMicros = <String>[];
+      if (per100g.calcium == null || per100g.calcium == 0) missingMicros.add('calcium');
+      if (per100g.iron == null || per100g.iron == 0) missingMicros.add('iron');
+      if (per100g.vitaminB12 == null || per100g.vitaminB12 == 0) missingMicros.add('B12');
+      if (per100g.magnesium == null || per100g.magnesium == 0) missingMicros.add('magnesium');
+      if (per100g.zinc == null || per100g.zinc == 0) missingMicros.add('zinc');
+      
+      if (missingMicros.isNotEmpty) {
+        debugPrint('⚠️ MISSING MICROS for $foodName: ${missingMicros.join(", ")}');
+        debugPrint('Raw response was: $response');
+      }
+      
+      // Scale from per-100g to actual requested weight
+      final result = _scaleNutrition(per100g, requestedGrams);
       return result;
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('NUTRITION SERVICE ERROR for "$foodName": $e');
+      debugPrint('Stack: $stack');
       // Return a basic entry if AI fails
       return FoodNutritionResult(
         name: foodDescription,
@@ -121,7 +263,7 @@ Use standard USDA database values. Numbers only, no units in the JSON.
     }
   }
 
-  /// Analyze structured ingredients - gets per-100g values and calculates totals in code
+  /// Analyze structured ingredients - analyzes each ingredient and sums the nutrition
   Future<FoodNutritionResult> analyzeStructuredIngredients({
     required String mealName,
     required List<StructuredIngredient> ingredients,
@@ -130,30 +272,58 @@ Use standard USDA database values. Numbers only, no units in the JSON.
       throw Exception('API key not configured. Please set your API key in Settings.');
     }
 
-    double totalCalories = 0;
-    double totalProtein = 0;
-    double totalCarbs = 0;
-    double totalFat = 0;
-    double totalFiber = 0;
+    // Initialize totals for all nutrients
     double totalGrams = 0;
+    double totalCalories = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0;
+    double totalFiber = 0, totalSugar = 0, totalSodium = 0;
+    double totalVitaminC = 0, totalVitaminD = 0, totalCalcium = 0, totalIron = 0, totalPotassium = 0;
+    double totalVitaminA = 0, totalVitaminE = 0, totalVitaminK = 0;
+    double totalVitaminB1 = 0, totalVitaminB2 = 0, totalVitaminB3 = 0;
+    double totalVitaminB6 = 0, totalVitaminB12 = 0, totalFolate = 0;
+    double totalMagnesium = 0, totalZinc = 0, totalPhosphorus = 0;
+    double totalSelenium = 0, totalIodine = 0, totalOmega3 = 0;
 
     for (final ingredient in ingredients) {
       if (ingredient.name.isEmpty) continue;
 
-      // Get per-100g nutrition for this ingredient
-      final per100g = await getNutritionPer100g(ingredient.name);
-      
       // Convert amount to grams
       final grams = _convertToGrams(ingredient.amount, ingredient.unit);
       totalGrams += grams;
       
-      // Calculate actual nutrition (our math, not AI's)
-      final multiplier = grams / 100.0;
-      totalCalories += per100g.caloriesPer100g * multiplier;
-      totalProtein += per100g.proteinPer100g * multiplier;
-      totalCarbs += per100g.carbsPer100g * multiplier;
-      totalFat += per100g.fatPer100g * multiplier;
-      totalFiber += per100g.fiberPer100g * multiplier;
+      // Build the query string with weight
+      final query = '${grams.toStringAsFixed(0)}g ${ingredient.name}';
+      
+      // Get full nutrition analysis for this ingredient
+      final result = await analyzeFood(query);
+      
+      // Sum all nutrients
+      totalCalories += result.calories ?? 0;
+      totalProtein += result.protein ?? 0;
+      totalCarbs += result.carbs ?? 0;
+      totalFat += result.fat ?? 0;
+      totalFiber += result.fiber ?? 0;
+      totalSugar += result.sugar ?? 0;
+      totalSodium += result.sodium ?? 0;
+      totalVitaminC += result.vitaminC ?? 0;
+      totalVitaminD += result.vitaminD ?? 0;
+      totalCalcium += result.calcium ?? 0;
+      totalIron += result.iron ?? 0;
+      totalPotassium += result.potassium ?? 0;
+      totalVitaminA += result.vitaminA ?? 0;
+      totalVitaminE += result.vitaminE ?? 0;
+      totalVitaminK += result.vitaminK ?? 0;
+      totalVitaminB1 += result.vitaminB1 ?? 0;
+      totalVitaminB2 += result.vitaminB2 ?? 0;
+      totalVitaminB3 += result.vitaminB3 ?? 0;
+      totalVitaminB6 += result.vitaminB6 ?? 0;
+      totalVitaminB12 += result.vitaminB12 ?? 0;
+      totalFolate += result.folate ?? 0;
+      totalMagnesium += result.magnesium ?? 0;
+      totalZinc += result.zinc ?? 0;
+      totalPhosphorus += result.phosphorus ?? 0;
+      totalSelenium += result.selenium ?? 0;
+      totalIodine += result.iodine ?? 0;
+      totalOmega3 += result.omega3 ?? 0;
     }
 
     return FoodNutritionResult(
@@ -165,14 +335,29 @@ Use standard USDA database values. Numbers only, no units in the JSON.
       carbs: totalCarbs,
       fat: totalFat,
       fiber: totalFiber,
-      sugar: 0,
-      sodium: 0,
-      vitaminC: 0,
-      vitaminD: 0,
-      calcium: 0,
-      iron: 0,
-      potassium: 0,
+      sugar: totalSugar,
+      sodium: totalSodium,
+      vitaminC: totalVitaminC,
+      vitaminD: totalVitaminD,
+      calcium: totalCalcium,
+      iron: totalIron,
+      potassium: totalPotassium,
       healthScore: 7,
+      vitaminA: totalVitaminA,
+      vitaminE: totalVitaminE,
+      vitaminK: totalVitaminK,
+      vitaminB1: totalVitaminB1,
+      vitaminB2: totalVitaminB2,
+      vitaminB3: totalVitaminB3,
+      vitaminB6: totalVitaminB6,
+      vitaminB12: totalVitaminB12,
+      folate: totalFolate,
+      magnesium: totalMagnesium,
+      zinc: totalZinc,
+      phosphorus: totalPhosphorus,
+      selenium: totalSelenium,
+      iodine: totalIodine,
+      omega3: totalOmega3,
     );
   }
 
@@ -191,16 +376,26 @@ Use standard USDA database values. Numbers only, no units in the JSON.
         return amount; // Approximate for water-like liquids
       case 'l':
         return amount * 1000;
+      case 'cup':
       case 'cups':
         return amount * 240; // Approximate
       case 'tbsp':
         return amount * 15;
       case 'tsp':
         return amount * 5;
+      case 'unit':
       case 'units':
-        return amount * 50; // Rough estimate per unit
+      case 'piece':
+      case 'pieces':
+        return amount * 50; // Rough estimate per unit/piece
+      case 'slice':
+      case 'slices':
+        return amount * 30; // Approximate slice
+      case 'egg':
+      case 'eggs':
+        return amount * 50; // Average large egg ~50g
       default:
-        return amount;
+        return amount * 100; // Default to assuming amount is a serving
     }
   }
 
@@ -232,12 +427,16 @@ Use standard USDA database values. Numbers only, no units in the JSON.
             'content': 'You are a nutrition expert. Always respond with valid JSON only, no markdown or explanation.',
           },
           {
+            'role': 'system',
+            'content': 'You are a USDA nutrition database. Return ONLY valid JSON with complete nutrition data. Include ALL vitamins and minerals with accurate non-zero values.',
+          },
+          {
             'role': 'user',
             'content': prompt,
           },
         ],
-        'temperature': 0.3,
-        'max_tokens': 500,
+        'temperature': 0.1,
+        'max_tokens': 1000,
       },
     );
 
@@ -261,7 +460,8 @@ Use standard USDA database values. Numbers only, no units in the JSON.
       ),
       data: {
         'model': 'claude-3-haiku-20240307',
-        'max_tokens': 500,
+        'max_tokens': 1000,
+        'system': 'You are a USDA nutrition database. Return ONLY valid JSON with complete nutrition data. Include ALL vitamins and minerals with accurate non-zero values.',
         'messages': [
           {
             'role': 'user',
@@ -293,15 +493,15 @@ Use standard USDA database values. Numbers only, no units in the JSON.
         'messages': [
           {
             'role': 'system',
-            'content': 'You are a nutrition expert. When asked for JSON, respond with valid JSON only (no markdown). Otherwise respond naturally and helpfully.',
+            'content': 'You are a USDA nutrition database. Return ONLY valid JSON with complete nutrition data. Include ALL vitamins and minerals with accurate non-zero values.',
           },
           {
             'role': 'user',
             'content': prompt,
           },
         ],
-        'temperature': 0.3,
-        'max_tokens': 500,
+        'temperature': 0.1,
+        'max_tokens': 1000,
       },
     );
 
@@ -311,42 +511,6 @@ Use standard USDA database values. Numbers only, no units in the JSON.
 
     // DeepSeek uses OpenAI-compatible response format
     return response.data['choices'][0]['message']['content'] as String;
-  }
-
-  FoodNutritionResult _parseResponse(String response, String originalName) {
-    try {
-      // Clean up response - remove markdown code blocks if present
-      var cleaned = response.trim();
-      if (cleaned.startsWith('```')) {
-        cleaned = cleaned.replaceAll(RegExp(r'^```\w*\n?'), '').replaceAll(RegExp(r'\n?```$'), '');
-      }
-
-      final data = jsonDecode(cleaned) as Map<String, dynamic>;
-
-      return FoodNutritionResult(
-        name: data['name'] as String? ?? originalName,
-        servingSize: (data['servingSize'] as num?)?.toDouble(),
-        servingUnit: data['servingUnit'] as String?,
-        calories: (data['calories'] as num?)?.toDouble(),
-        protein: (data['protein'] as num?)?.toDouble(),
-        carbs: (data['carbs'] as num?)?.toDouble(),
-        fat: (data['fat'] as num?)?.toDouble(),
-        fiber: (data['fiber'] as num?)?.toDouble(),
-        sugar: (data['sugar'] as num?)?.toDouble(),
-        sodium: (data['sodium'] as num?)?.toDouble(),
-        vitaminC: (data['vitaminC'] as num?)?.toDouble(),
-        vitaminD: (data['vitaminD'] as num?)?.toDouble(),
-        calcium: (data['calcium'] as num?)?.toDouble(),
-        iron: (data['iron'] as num?)?.toDouble(),
-        potassium: (data['potassium'] as num?)?.toDouble(),
-        healthScore: (data['healthScore'] as num?)?.toDouble(),
-      );
-    } catch (e) {
-      return FoodNutritionResult(
-        name: originalName,
-        error: 'Failed to parse nutrition data: $e',
-      );
-    }
   }
 
   /// Get suggestions for what nutrients are missing based on daily intake
@@ -544,41 +708,238 @@ Use standard USDA database values. Numbers only, no units in the JSON.
 
   /// Get AI-generated personalized meal recommendation based on multi-day nutrition patterns
   Future<String> getAIMealRecommendation(MultiDayNutritionOverview overview, {String? preferences}) async {
+    final suggestions = await getAIMealSuggestions(overview, count: 1, preferences: preferences);
+    return suggestions.isNotEmpty ? suggestions.first : 'Unable to generate recommendation.';
+  }
+
+  /// Get multiple AI-generated meal suggestions based on multi-day nutrition patterns
+  Future<List<String>> getAIMealSuggestions(MultiDayNutritionOverview overview, {int count = 4, String? preferences}) async {
     if (apiKey == null || apiKey!.isEmpty) {
       throw Exception('API key not configured');
     }
 
     // Check if there are any deficiencies to address
     if (!overview.hasDeficiencies && overview.todayIntake.getDeficiencies().isEmpty) {
-      return "You're doing great! Your nutrition has been well-balanced recently. Keep it up!";
+      return ["You're doing great! Your nutrition has been well-balanced recently. Keep it up!"];
     }
 
     final nutritionContext = overview.toAISummary();
 
     final prompt = '''
-You're a helpful nutritionist. Based on the user's nutrition patterns over the past week, suggest ONE specific, practical meal or snack.
+You're a helpful nutritionist. Based on the user's nutrition patterns over the past week, suggest $count different specific, practical meals or snacks.
 
 $nutritionContext
 ${preferences != null ? '\nDietary preferences: $preferences' : ''}
 
 Requirements:
-- Start with the meal name followed by a colon (e.g., "Salmon Buddha Bowl:" or "Greek Yogurt Parfait:")
-- Keep it to 2-3 sentences max
+- Provide exactly $count different meal suggestions
+- Format: "Meal Name: Brief description" (one per line, numbered)
+- Keep each to 1-2 sentences
 - Be specific about key ingredients
-- Focus on addressing their CONSISTENT deficiencies (nutrients they're regularly low on), not just today
-- Make it realistic and appetizing
-- Vary your suggestions - consider different cuisines and meal types
-- Respond with ONLY the suggestion text, no JSON formatting or markdown
+- Focus on their consistent deficiencies
+- Vary cuisines and meal types (breakfast, lunch, dinner, snack)
+- IMPORTANT: Plain text only, NO JSON, NO quotes around text, NO markdown
 
-Example response:
-Spinach & Feta Omelet: A 3-egg omelet with sautéed spinach, feta cheese, and cherry tomatoes. This helps with your ongoing iron and calcium needs while adding quality protein.
+Respond in this EXACT format:
+1. Spinach & Feta Omelet: A 3-egg omelet with spinach, feta, and tomatoes for iron and calcium.
+2. Salmon Buddha Bowl: Grilled salmon over quinoa with edamame and avocado for protein and omega-3s.
+3. Greek Yogurt Parfait: Greek yogurt layered with berries, granola, and honey for protein and fiber.
+4. Chickpea Curry: Hearty chickpea curry with spinach over brown rice for iron and fiber.
 ''';
 
     try {
       final response = await _callAI(prompt);
-      return _cleanMealSuggestion(response);
+      return _parseMultipleSuggestions(response, count);
     } catch (e) {
-      return 'Unable to generate recommendation. Try some of the suggested foods above!';
+      return ['Unable to generate recommendations. Please try again.'];
+    }
+  }
+
+  /// Parse multiple meal suggestions from AI response
+  List<String> _parseMultipleSuggestions(String response, int expectedCount) {
+    var cleaned = response.trim();
+    
+    // Remove markdown code blocks if present
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replaceAll(RegExp(r'^```\w*\n?'), '').replaceAll(RegExp(r'\n?```$'), '');
+    }
+
+    // Try to parse as JSON first (AI might return JSON despite instructions)
+    try {
+      final decoded = jsonDecode(cleaned);
+      if (decoded is Map<String, dynamic>) {
+        // Look for an array field
+        for (final value in decoded.values) {
+          if (value is List) {
+            return value
+                .map((item) => _cleanSuggestionText(item.toString()))
+                .where((s) => s.isNotEmpty && s.contains(':'))
+                .take(expectedCount)
+                .toList();
+          }
+        }
+      } else if (decoded is List) {
+        return decoded
+            .map((item) => _cleanSuggestionText(item.toString()))
+            .where((s) => s.isNotEmpty && s.contains(':'))
+            .take(expectedCount)
+            .toList();
+      }
+    } catch (_) {
+      // Not JSON, parse as plain text
+    }
+
+    // Split by numbered lines (1., 2., etc.)
+    final lines = cleaned.split(RegExp(r'\n+'));
+    final suggestions = <String>[];
+
+    for (final line in lines) {
+      final trimmed = _cleanSuggestionText(line);
+      if (trimmed.isNotEmpty && trimmed.contains(':')) {
+        suggestions.add(trimmed);
+      }
+    }
+
+    // If parsing failed, return the whole response as a single suggestion
+    if (suggestions.isEmpty) {
+      return [_cleanMealSuggestion(cleaned)];
+    }
+
+    return suggestions.take(expectedCount).toList();
+  }
+
+  /// Clean up a single suggestion text
+  String _cleanSuggestionText(String text) {
+    var cleaned = text.trim();
+    
+    // Remove leading quotes and numbers like "1.", '"1.', '2.', etc.
+    cleaned = cleaned.replaceFirst(RegExp(r'''^["']*\d+[.\)]\s*'''), '');
+    
+    // Remove leading quotes
+    cleaned = cleaned.replaceFirst(RegExp(r'''^["']+'''), '');
+    
+    // Remove trailing quotes
+    cleaned = cleaned.replaceFirst(RegExp(r'''["']+$'''), '');
+    
+    // Remove trailing commas
+    cleaned = cleaned.replaceFirst(RegExp(r',\s*$'), '');
+    
+    // Remove JSON-like artifacts
+    cleaned = cleaned.replaceFirst(RegExp(r'^\s*[\[\{]'), '');
+    cleaned = cleaned.replaceFirst(RegExp(r'[\]\}]\s*$'), '');
+    
+    return cleaned.trim();
+  }
+
+  /// Generate a detailed recipe for a meal
+  Future<MealRecipe> generateRecipe(String mealName) async {
+    if (apiKey == null || apiKey!.isEmpty) {
+      throw Exception('API key not configured');
+    }
+
+    final prompt = '''
+Generate a detailed recipe for: $mealName
+
+Respond with ONLY this JSON format:
+{
+  "name": "$mealName",
+  "servings": <number of servings>,
+  "prepTime": "<prep time, e.g. '15 mins'>",
+  "cookTime": "<cook time, e.g. '30 mins'>",
+  "difficulty": "<Easy/Medium/Hard>",
+  "ingredients": [
+    {"item": "<ingredient name>", "amount": "<quantity with unit>"},
+    ...
+  ],
+  "instructions": [
+    "<step 1>",
+    "<step 2>",
+    ...
+  ],
+  "nutritionPerServing": {
+    "calories": <number>,
+    "protein": <grams>,
+    "carbs": <grams>,
+    "fat": <grams>,
+    "fiber": <grams>
+  },
+  "tips": "<optional cooking tip or variation>"
+}
+''';
+
+    try {
+      final response = await _callAI(prompt);
+      return _parseRecipeResponse(response, mealName);
+    } catch (e) {
+      debugPrint('Error generating recipe: $e');
+      throw Exception('Failed to generate recipe: $e');
+    }
+  }
+
+  /// Parse the recipe response from AI
+  MealRecipe _parseRecipeResponse(String response, String mealName) {
+    var cleaned = response.trim();
+    
+    // Remove markdown code blocks if present
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replaceAll(RegExp(r'^```\w*\n?'), '').replaceAll(RegExp(r'\n?```$'), '');
+    }
+    
+    // Try to extract JSON
+    final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(cleaned);
+    if (jsonMatch != null) {
+      cleaned = jsonMatch.group(0)!;
+    }
+
+    try {
+      final data = jsonDecode(cleaned) as Map<String, dynamic>;
+      
+      // Parse ingredients
+      final ingredientsList = (data['ingredients'] as List<dynamic>?)?.map((item) {
+        if (item is Map<String, dynamic>) {
+          return RecipeIngredient(
+            item: item['item'] as String? ?? '',
+            amount: item['amount'] as String? ?? '',
+          );
+        }
+        return RecipeIngredient(item: item.toString(), amount: '');
+      }).toList() ?? [];
+
+      // Parse instructions
+      final instructionsList = (data['instructions'] as List<dynamic>?)
+          ?.map((item) => item.toString())
+          .toList() ?? [];
+
+      // Parse nutrition
+      final nutritionData = data['nutritionPerServing'] as Map<String, dynamic>?;
+
+      return MealRecipe(
+        name: data['name'] as String? ?? mealName,
+        servings: (data['servings'] as num?)?.toInt() ?? 2,
+        prepTime: data['prepTime'] as String? ?? '15 mins',
+        cookTime: data['cookTime'] as String? ?? '30 mins',
+        difficulty: data['difficulty'] as String? ?? 'Medium',
+        ingredients: ingredientsList,
+        instructions: instructionsList,
+        caloriesPerServing: (nutritionData?['calories'] as num?)?.toDouble(),
+        proteinPerServing: (nutritionData?['protein'] as num?)?.toDouble(),
+        carbsPerServing: (nutritionData?['carbs'] as num?)?.toDouble(),
+        fatPerServing: (nutritionData?['fat'] as num?)?.toDouble(),
+        fiberPerServing: (nutritionData?['fiber'] as num?)?.toDouble(),
+        tips: data['tips'] as String?,
+      );
+    } catch (e) {
+      debugPrint('Failed to parse recipe JSON: $e');
+      // Return a basic recipe with just the name
+      return MealRecipe(
+        name: mealName,
+        servings: 2,
+        prepTime: 'Unknown',
+        cookTime: 'Unknown',
+        difficulty: 'Unknown',
+        ingredients: [],
+        instructions: ['Recipe generation failed. Please try again.'],
+      );
     }
   }
   
@@ -726,6 +1087,24 @@ class FoodNutritionResult {
     this.potassium,
     this.healthScore,
     this.error,
+    // Additional vitamins
+    this.vitaminA,
+    this.vitaminE,
+    this.vitaminK,
+    this.vitaminB1,
+    this.vitaminB2,
+    this.vitaminB3,
+    this.vitaminB6,
+    this.vitaminB12,
+    this.folate,
+    // Additional minerals
+    this.magnesium,
+    this.zinc,
+    this.phosphorus,
+    this.selenium,
+    this.iodine,
+    // Fatty acids
+    this.omega3,
   });
 
   final String name;
@@ -745,6 +1124,24 @@ class FoodNutritionResult {
   final double? potassium;
   final double? healthScore;
   final String? error;
+  // Additional vitamins
+  final double? vitaminA;
+  final double? vitaminE;
+  final double? vitaminK;
+  final double? vitaminB1;
+  final double? vitaminB2;
+  final double? vitaminB3;
+  final double? vitaminB6;
+  final double? vitaminB12;
+  final double? folate;
+  // Additional minerals
+  final double? magnesium;
+  final double? zinc;
+  final double? phosphorus;
+  final double? selenium;
+  final double? iodine;
+  // Fatty acids
+  final double? omega3;
 
   bool get hasError => error != null;
 
@@ -767,6 +1164,24 @@ class FoodNutritionResult {
       calcium: calcium,
       iron: iron,
       potassium: potassium,
+      // Additional vitamins
+      vitaminA: vitaminA,
+      vitaminE: vitaminE,
+      vitaminK: vitaminK,
+      vitaminB1: vitaminB1,
+      vitaminB2: vitaminB2,
+      vitaminB3: vitaminB3,
+      vitaminB6: vitaminB6,
+      vitaminB12: vitaminB12,
+      folate: folate,
+      // Additional minerals
+      magnesium: magnesium,
+      zinc: zinc,
+      phosphorus: phosphorus,
+      selenium: selenium,
+      iodine: iodine,
+      // Fatty acids
+      omega3: omega3,
       healthScore: healthScore,
       servingSize: servingSize,
       servingUnit: servingUnit,
@@ -804,5 +1219,85 @@ class StructuredIngredient {
   final String name;
   final double amount;
   final String unit;
+}
+
+/// Parsed food input with extracted food name and weight in grams
+class _ParsedFoodInput {
+  const _ParsedFoodInput(this.foodName, this.grams);
+
+  final String foodName;
+  final double grams;
+}
+
+/// A detailed recipe for a meal
+class MealRecipe {
+  const MealRecipe({
+    required this.name,
+    required this.servings,
+    required this.prepTime,
+    required this.cookTime,
+    required this.difficulty,
+    required this.ingredients,
+    required this.instructions,
+    this.caloriesPerServing,
+    this.proteinPerServing,
+    this.carbsPerServing,
+    this.fatPerServing,
+    this.fiberPerServing,
+    this.tips,
+  });
+
+  final String name;
+  final int servings;
+  final String prepTime;
+  final String cookTime;
+  final String difficulty;
+  final List<RecipeIngredient> ingredients;
+  final List<String> instructions;
+  final double? caloriesPerServing;
+  final double? proteinPerServing;
+  final double? carbsPerServing;
+  final double? fatPerServing;
+  final double? fiberPerServing;
+  final String? tips;
+
+  String get totalTime {
+    // Try to parse and add prep + cook times
+    final prepMins = _parseMinutes(prepTime);
+    final cookMins = _parseMinutes(cookTime);
+    if (prepMins != null && cookMins != null) {
+      final total = prepMins + cookMins;
+      if (total >= 60) {
+        final hours = total ~/ 60;
+        final mins = total % 60;
+        return mins > 0 ? '$hours hr $mins mins' : '$hours hr';
+      }
+      return '$total mins';
+    }
+    return '$prepTime + $cookTime';
+  }
+
+  int? _parseMinutes(String time) {
+    final match = RegExp(r'(\d+)').firstMatch(time);
+    if (match != null) {
+      final num = int.tryParse(match.group(1)!);
+      if (time.toLowerCase().contains('hr') || time.toLowerCase().contains('hour')) {
+        return (num ?? 0) * 60;
+      }
+      return num;
+    }
+    return null;
+  }
+}
+
+/// An ingredient in a recipe
+class RecipeIngredient {
+  const RecipeIngredient({
+    required this.item,
+    required this.amount,
+  });
+
+  final String item;
+  final String amount;
 }
 

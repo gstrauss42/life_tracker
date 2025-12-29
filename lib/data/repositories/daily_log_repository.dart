@@ -22,3 +22,5 @@ abstract class DailyLogRepository {
   Future<DailyLog> updateLog(DateTime date, DailyLog Function(DailyLog) update);
 }
 
+
+

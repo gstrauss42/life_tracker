@@ -65,3 +65,5 @@ class HiveDailyLogRepository implements DailyLogRepository {
   }
 }
 
+
+

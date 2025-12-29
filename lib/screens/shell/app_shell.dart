@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/responsive/responsive.dart';
 import '../home/home_screen.dart';
 import '../analytics/analytics_screen.dart';
 import '../settings/settings_screen.dart';
 
-/// Main application shell with navigation.
+/// Main application shell with responsive navigation.
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
@@ -15,68 +16,68 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   int _selectedIndex = 0;
+  late final DetailPanelController _detailController;
 
-  static const List<Widget> _screens = [
-    HomeScreen(),
-    AnalyticsScreen(),
-    SettingsScreen(),
-  ];
-
-  static const List<NavigationRailDestination> _destinations = [
-    NavigationRailDestination(
-      icon: Icon(Icons.today_outlined),
-      selectedIcon: Icon(Icons.today),
-      label: Text('Today'),
+  static const List<NavDestination> _destinations = [
+    NavDestination(
+      icon: Icons.today_outlined,
+      selectedIcon: Icons.today,
+      label: 'Today',
     ),
-    NavigationRailDestination(
-      icon: Icon(Icons.analytics_outlined),
-      selectedIcon: Icon(Icons.analytics),
-      label: Text('Analytics'),
+    NavDestination(
+      icon: Icons.analytics_outlined,
+      selectedIcon: Icons.analytics,
+      label: 'Analytics',
     ),
-    NavigationRailDestination(
-      icon: Icon(Icons.settings_outlined),
-      selectedIcon: Icon(Icons.settings),
-      label: Text('Settings'),
+    NavDestination(
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings,
+      label: 'Settings',
     ),
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _detailController = DetailPanelController();
+  }
+
+  @override
+  void dispose() {
+    _detailController.dispose();
+    super.dispose();
+  }
+
+  Widget _getScreen(int index) {
+    return switch (index) {
+      0 => HomeScreen(detailController: _detailController),
+      1 => const AnalyticsScreen(),
+      2 => const SettingsScreen(),
+      _ => HomeScreen(detailController: _detailController),
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      body: Row(
-        children: [
-          NavigationRail(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) => setState(() => _selectedIndex = index),
-            extended: MediaQuery.of(context).size.width > 800,
-            minExtendedWidth: 180,
-            destinations: _destinations,
-            backgroundColor: colorScheme.surface,
-            indicatorColor: colorScheme.primaryContainer,
-            selectedIconTheme: IconThemeData(color: colorScheme.onPrimaryContainer),
-            unselectedIconTheme: IconThemeData(color: colorScheme.onSurface.withValues(alpha: 0.6)),
-            selectedLabelTextStyle: TextStyle(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.w600,
-            ),
-            unselectedLabelTextStyle: TextStyle(
-              color: colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: _buildLogo(theme),
-            ),
-          ),
-          VerticalDivider(
-            width: 1,
-            thickness: 1,
-            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-          ),
-          Expanded(child: _screens[_selectedIndex]),
-        ],
+    return ResponsiveScaffold(
+      selectedIndex: _selectedIndex,
+      onDestinationSelected: (index) {
+        setState(() => _selectedIndex = index);
+        // Close detail panel when switching tabs
+        if (_detailController.isOpen) {
+          _detailController.close();
+        }
+      },
+      destinations: _destinations,
+      leading: _buildLogo(theme),
+      body: AdaptiveDetailLayout(
+        controller: _detailController,
+        masterContent: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: _getScreen(_selectedIndex),
+        ),
       ),
     );
   }

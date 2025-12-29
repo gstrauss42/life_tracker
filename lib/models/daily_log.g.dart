@@ -18,13 +18,13 @@ class DailyLogAdapter extends TypeAdapter<DailyLog> {
     };
     return DailyLog(
       date: fields[0] as String,
-      waterLiters: fields[1] as double? ?? 0.0,
-      exerciseMinutes: fields[2] as int? ?? 0,
-      sunlightMinutes: fields[3] as int? ?? 0,
-      sleepHours: fields[4] as double? ?? 0.0,
+      waterLiters: fields[1] as double,
+      exerciseMinutes: fields[2] as int,
+      sunlightMinutes: fields[3] as int,
+      sleepHours: fields[4] as double,
       foodEntries: (fields[5] as List?)?.cast<FoodEntry>(),
-      notes: fields[6] as String? ?? '',
-      socialMinutes: fields[7] as int? ?? 0,
+      notes: fields[6] as String,
+      socialMinutes: fields[7] as int,
     );
   }
 
@@ -75,6 +75,7 @@ class FoodEntryAdapter extends TypeAdapter<FoodEntry> {
       id: fields[0] as String,
       name: fields[1] as String,
       timestamp: fields[2] as DateTime,
+      originalInput: fields[20] as String?,
       calories: fields[3] as double?,
       protein: fields[4] as double?,
       carbs: fields[5] as double?,
@@ -92,14 +93,28 @@ class FoodEntryAdapter extends TypeAdapter<FoodEntry> {
       potassium: fields[17] as double?,
       servingSize: fields[18] as double?,
       servingUnit: fields[19] as String?,
-      originalInput: fields[20] as String?,
+      vitaminA: fields[21] as double?,
+      vitaminE: fields[22] as double?,
+      vitaminK: fields[23] as double?,
+      vitaminB1: fields[24] as double?,
+      vitaminB2: fields[25] as double?,
+      vitaminB3: fields[26] as double?,
+      vitaminB6: fields[27] as double?,
+      vitaminB12: fields[28] as double?,
+      folate: fields[29] as double?,
+      magnesium: fields[30] as double?,
+      zinc: fields[31] as double?,
+      phosphorus: fields[32] as double?,
+      selenium: fields[33] as double?,
+      iodine: fields[34] as double?,
+      omega3: fields[35] as double?,
     );
   }
 
   @override
   void write(BinaryWriter writer, FoodEntry obj) {
     writer
-      ..writeByte(21)
+      ..writeByte(36)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -141,7 +156,37 @@ class FoodEntryAdapter extends TypeAdapter<FoodEntry> {
       ..writeByte(19)
       ..write(obj.servingUnit)
       ..writeByte(20)
-      ..write(obj.originalInput);
+      ..write(obj.originalInput)
+      ..writeByte(21)
+      ..write(obj.vitaminA)
+      ..writeByte(22)
+      ..write(obj.vitaminE)
+      ..writeByte(23)
+      ..write(obj.vitaminK)
+      ..writeByte(24)
+      ..write(obj.vitaminB1)
+      ..writeByte(25)
+      ..write(obj.vitaminB2)
+      ..writeByte(26)
+      ..write(obj.vitaminB3)
+      ..writeByte(27)
+      ..write(obj.vitaminB6)
+      ..writeByte(28)
+      ..write(obj.vitaminB12)
+      ..writeByte(29)
+      ..write(obj.folate)
+      ..writeByte(30)
+      ..write(obj.magnesium)
+      ..writeByte(31)
+      ..write(obj.zinc)
+      ..writeByte(32)
+      ..write(obj.phosphorus)
+      ..writeByte(33)
+      ..write(obj.selenium)
+      ..writeByte(34)
+      ..write(obj.iodine)
+      ..writeByte(35)
+      ..write(obj.omega3);
   }
 
   @override
