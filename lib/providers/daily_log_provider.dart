@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../data/data.dart';
 import '../models/models.dart';
+import 'aggregation_provider.dart';
 import 'repository_providers.dart';
 import 'date_provider.dart';
 
@@ -10,7 +11,7 @@ import 'date_provider.dart';
 final dailyLogProvider = StateNotifierProvider<DailyLogNotifier, DailyLog>((ref) {
   final repository = ref.watch(dailyLogRepositoryProvider);
   final selectedDate = ref.watch(selectedDateProvider);
-  return DailyLogNotifier(repository, selectedDate);
+  return DailyLogNotifier(repository, selectedDate, ref);
 });
 
 /// Provider for multi-day nutrition overview (last 7 days).
@@ -25,7 +26,7 @@ final multiDayNutritionProvider = Provider<MultiDayNutritionOverview>((ref) {
 
 /// Unified notifier for managing daily log state.
 class DailyLogNotifier extends StateNotifier<DailyLog> {
-  DailyLogNotifier(this._repository, DateTime date)
+  DailyLogNotifier(this._repository, DateTime date, this._ref)
       : _dateKey = DateFormat('yyyy-MM-dd').format(date),
         super(DailyLog(date: DateFormat('yyyy-MM-dd').format(date))) {
     _loadLog();
@@ -33,17 +34,23 @@ class DailyLogNotifier extends StateNotifier<DailyLog> {
 
   final DailyLogRepository _repository;
   final String _dateKey;
+  final Ref _ref;
 
   void _loadLog() {
     final log = _repository.getLog(DateTime.parse(_dateKey));
     state = log?.copyWith() ?? DailyLog(date: _dateKey);
   }
 
-  Future<void> _updateAndSave(DailyLog Function(DailyLog) update) async {
+  Future<void> _updateAndSave(DailyLog Function(DailyLog) update, {bool triggerAggregation = true}) async {
     final log = _repository.getOrCreateLog(DateTime.parse(_dateKey));
     final updated = update(log);
     await _repository.save(updated);
     state = updated.copyWith();
+    
+    // Trigger aggregation recomputation in background
+    if (triggerAggregation) {
+      triggerAggregationRecompute(_ref);
+    }
   }
 
   // Tracking updates
@@ -55,7 +62,7 @@ class DailyLogNotifier extends StateNotifier<DailyLog> {
   Future<void> setExercise(int minutes) => _updateAndSave((log) {
         log.exerciseMinutes = minutes.clamp(0, 480);
         return log;
-      });
+      }, triggerAggregation: false); // Exercise provider handles this
 
   Future<void> setSunlight(int minutes) => _updateAndSave((log) {
         log.sunlightMinutes = minutes.clamp(0, 480);
@@ -70,7 +77,7 @@ class DailyLogNotifier extends StateNotifier<DailyLog> {
   Future<void> setSocial(int minutes) => _updateAndSave((log) {
         log.socialMinutes = minutes.clamp(0, 480);
         return log;
-      });
+      }, triggerAggregation: false); // Social provider handles this
 
   // Food operations
   Future<void> addFood(FoodEntry entry) => _updateAndSave((log) {
@@ -87,5 +94,5 @@ class DailyLogNotifier extends StateNotifier<DailyLog> {
   Future<void> setNotes(String notes) => _updateAndSave((log) {
         log.notes = notes;
         return log;
-      });
+      }, triggerAggregation: false); // Notes don't affect aggregates
 }

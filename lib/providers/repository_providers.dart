@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/data.dart';
 import '../data/repositories/exercise_repository.dart';
+import '../data/repositories/aggregation_repository.dart';
+import '../data/repositories/analytics_repository.dart';
 import '../data/storage_initializer.dart';
 
 /// Provider for the daily log repository.
@@ -17,6 +19,16 @@ final userConfigRepositoryProvider = Provider<UserConfigRepository>((ref) {
 /// Provider for the exercise repository.
 final exerciseRepositoryProvider = Provider<ExerciseRepository>((ref) {
   return StorageInitializer.exerciseRepository;
+});
+
+/// Provider for the aggregation repository.
+final aggregationRepositoryProvider = Provider<AggregationRepository>((ref) {
+  return StorageInitializer.aggregationRepository;
+});
+
+/// Provider for the analytics repository.
+final analyticsRepositoryProviderImpl = Provider<AnalyticsRepository>((ref) {
+  return StorageInitializer.analyticsRepository;
 });
 
 

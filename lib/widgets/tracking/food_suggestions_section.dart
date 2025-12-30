@@ -44,7 +44,8 @@ class _FoodSuggestionsSectionState extends ConsumerState<FoodSuggestionsSection>
     final state = ref.read(mealSuggestionsProvider);
     final prefs = state.getPreferences(widget.selectedDate);
     _feelLikeController.text = prefs.feelLike;
-    _dislikeController.text = prefs.dislike;
+    // Note: _dislikeController is now just for adding new avoided ingredients, not storing them
+    _dislikeController.clear();
   }
 
   @override
@@ -189,6 +190,9 @@ class _FoodSuggestionsSectionState extends ConsumerState<FoodSuggestionsSection>
   }
 
   Widget _buildGenerateButton(BuildContext context, ThemeData theme, ColorScheme colorScheme) {
+    final config = ref.watch(userConfigProvider);
+    final avoidedIngredients = config.avoidedIngredients ?? [];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -199,20 +203,12 @@ class _FoodSuggestionsSectionState extends ConsumerState<FoodSuggestionsSection>
           colorScheme,
           controller: _feelLikeController,
           icon: Icons.favorite_outline,
-          hintText: 'Optional: ingredients I\'d like (e.g., "chicken", "pasta")',
+          hintText: 'What I\'m craving (ingredient, cuisine, style...)',
           iconColor: const Color(0xFF4CAF50),
         ),
-        const SizedBox(height: 10),
-        // Dislike input
-        _buildPreferenceField(
-          context,
-          theme,
-          colorScheme,
-          controller: _dislikeController,
-          icon: Icons.block_outlined,
-          hintText: 'Optional: foods to avoid (e.g., "mushrooms", "fish")',
-          iconColor: const Color(0xFFEF5350),
-        ),
+        const SizedBox(height: 12),
+        // Avoided ingredients section with pills
+        _buildAvoidedIngredientsSection(context, theme, colorScheme, avoidedIngredients),
         const SizedBox(height: 14),
         // Generate button
         SizedBox(
@@ -230,6 +226,130 @@ class _FoodSuggestionsSectionState extends ConsumerState<FoodSuggestionsSection>
         ),
       ],
     );
+  }
+
+  Widget _buildAvoidedIngredientsSection(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    List<String> avoidedIngredients,
+  ) {
+    const avoidColor = Color(0xFFEF5350);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Input field for adding new ingredients
+        TextField(
+          controller: _dislikeController,
+          decoration: InputDecoration(
+            hintText: 'Add ingredient to avoid...',
+            hintStyle: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.4),
+              fontSize: 13,
+            ),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 8),
+              child: Icon(Icons.block_outlined, color: avoidColor, size: 20),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 40),
+            suffixIcon: IconButton(
+              icon: Icon(Icons.add_circle_outline, color: avoidColor.withValues(alpha: 0.7), size: 22),
+              onPressed: _addAvoidedIngredient,
+              tooltip: 'Add ingredient',
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: avoidColor.withValues(alpha: 0.7),
+                width: 1.5,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          ),
+          style: theme.textTheme.bodyMedium,
+          onSubmitted: (_) => _addAvoidedIngredient(),
+        ),
+        // Pills for avoided ingredients
+        if (avoidedIngredients.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: avoidedIngredients.map((ingredient) {
+              return _buildIngredientPill(context, theme, colorScheme, ingredient, avoidColor);
+            }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildIngredientPill(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    String ingredient,
+    Color accentColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            ingredient,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: accentColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => _removeAvoidedIngredient(ingredient),
+            child: Icon(
+              Icons.close,
+              size: 16,
+              color: accentColor.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addAvoidedIngredient() {
+    final ingredient = _dislikeController.text.trim();
+    if (ingredient.isNotEmpty) {
+      ref.read(userConfigProvider.notifier).addAvoidedIngredient(ingredient);
+      _dislikeController.clear();
+    }
+  }
+
+  void _removeAvoidedIngredient(String ingredient) {
+    ref.read(userConfigProvider.notifier).removeAvoidedIngredient(ingredient);
   }
 
   Widget _buildPreferenceField(
@@ -462,6 +582,9 @@ class _FoodSuggestionsSectionState extends ConsumerState<FoodSuggestionsSection>
   }
 
   Widget _buildRegenerateSection(BuildContext context, ThemeData theme, ColorScheme colorScheme) {
+    final config = ref.watch(userConfigProvider);
+    final avoidedIngredients = config.avoidedIngredients ?? [];
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -492,26 +615,19 @@ class _FoodSuggestionsSectionState extends ConsumerState<FoodSuggestionsSection>
             ],
           ),
           const SizedBox(height: 12),
-          // Compact preference fields
+          // Compact preference field for "feel like"
           _buildCompactPreferenceField(
             context,
             theme,
             colorScheme,
             controller: _feelLikeController,
             icon: Icons.favorite_outline,
-            hintText: 'Ingredients I\'d like...',
+            hintText: 'Craving... (e.g., Thai, grilled, pasta)',
             iconColor: const Color(0xFF4CAF50),
           ),
           const SizedBox(height: 8),
-          _buildCompactPreferenceField(
-            context,
-            theme,
-            colorScheme,
-            controller: _dislikeController,
-            icon: Icons.block_outlined,
-            hintText: 'Ingredients to avoid...',
-            iconColor: const Color(0xFFEF5350),
-          ),
+          // Compact avoided ingredients section
+          _buildCompactAvoidedSection(context, theme, colorScheme, avoidedIngredients),
           const SizedBox(height: 12),
           // Regenerate button
           SizedBox(
@@ -524,6 +640,119 @@ class _FoodSuggestionsSectionState extends ConsumerState<FoodSuggestionsSection>
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.5)),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactAvoidedSection(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    List<String> avoidedIngredients,
+  ) {
+    const avoidColor = Color(0xFFEF5350);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Compact input field
+        TextField(
+          controller: _dislikeController,
+          decoration: InputDecoration(
+            hintText: 'Add ingredient to avoid...',
+            hintStyle: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.4),
+              fontSize: 12,
+            ),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 10, right: 6),
+              child: Icon(Icons.block_outlined, color: avoidColor, size: 16),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 32),
+            suffixIcon: IconButton(
+              icon: Icon(Icons.add, color: avoidColor.withValues(alpha: 0.7), size: 18),
+              onPressed: _addAvoidedIngredient,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: avoidColor.withValues(alpha: 0.7),
+                width: 1.5,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          ),
+          style: theme.textTheme.bodySmall,
+          onSubmitted: (_) => _addAvoidedIngredient(),
+        ),
+        // Compact pills
+        if (avoidedIngredients.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: avoidedIngredients.map((ingredient) {
+              return _buildCompactIngredientPill(context, theme, colorScheme, ingredient, avoidColor);
+            }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCompactIngredientPill(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    String ingredient,
+    Color accentColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            ingredient,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: accentColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 2),
+          GestureDetector(
+            onTap: () => _removeAvoidedIngredient(ingredient),
+            child: Icon(
+              Icons.close,
+              size: 14,
+              color: accentColor.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -698,10 +927,23 @@ class _FoodSuggestionsSectionState extends ConsumerState<FoodSuggestionsSection>
     final overview = ref.read(multiDayNutritionProvider);
     final notifier = ref.read(mealSuggestionsProvider.notifier);
 
-    // Save current preferences
+    // Build preferences string from "feel like" and persisted avoided ingredients
+    final feelLike = _feelLikeController.text.trim();
+    final avoidedIngredients = config.avoidedIngredients ?? [];
+    
+    final preferencesParts = <String>[];
+    if (feelLike.isNotEmpty) {
+      preferencesParts.add('User is craving: $feelLike');
+    }
+    if (avoidedIngredients.isNotEmpty) {
+      preferencesParts.add('IMPORTANT - Avoid these ingredients completely: ${avoidedIngredients.join(', ')}');
+    }
+    final preferencesString = preferencesParts.isNotEmpty ? preferencesParts.join('. ') : null;
+
+    // Save current preferences (for session state)
     final prefs = MealPreferences(
-      feelLike: _feelLikeController.text.trim(),
-      dislike: _dislikeController.text.trim(),
+      feelLike: feelLike,
+      dislike: avoidedIngredients.join(', '),
     );
     notifier.setPreferences(widget.selectedDate, prefs);
     notifier.setLoading(widget.selectedDate, true);
@@ -711,13 +953,15 @@ class _FoodSuggestionsSectionState extends ConsumerState<FoodSuggestionsSection>
         apiKey: config.aiApiKey,
         provider: config.aiProvider,
       );
-
-      // Use preferences string if any preferences are set
-      final preferencesString = prefs.isNotEmpty ? prefs.toPreferencesString() : null;
+      
+      // Get nutrition aggregates for AI context
+      final nutritionAggregates = ref.read(nutritionAggregatesProvider);
+      
       final suggestions = await service.getAIMealSuggestions(
         overview,
         count: 4,
         preferences: preferencesString,
+        aggregates: nutritionAggregates.hasData ? nutritionAggregates : null,
       );
 
       if (mounted) {

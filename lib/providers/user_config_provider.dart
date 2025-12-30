@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/data.dart';
 import '../models/models.dart';
-import '../models/exercise_models.dart';
 import '../services/services.dart';
 import 'repository_providers.dart';
 
@@ -172,6 +171,115 @@ class UserConfigNotifier extends StateNotifier<UserConfig> {
 
   Future<void> setPreferredWorkoutDuration(int minutes) => _updateAndSave((c) {
         c.preferredWorkoutDuration = minutes;
+        return c;
+      });
+
+  // Avoided ingredients management
+  Future<void> addAvoidedIngredient(String ingredient) => _updateAndSave((c) {
+        final trimmed = ingredient.trim().toLowerCase();
+        if (trimmed.isEmpty) return c;
+        final current = c.avoidedIngredients ?? [];
+        if (!current.contains(trimmed)) {
+          c.avoidedIngredients = [...current, trimmed];
+        }
+        return c;
+      });
+
+  Future<void> removeAvoidedIngredient(String ingredient) => _updateAndSave((c) {
+        final current = c.avoidedIngredients ?? [];
+        c.avoidedIngredients = current.where((i) => i != ingredient).toList();
+        return c;
+      });
+
+  Future<void> clearAvoidedIngredients() => _updateAndSave((c) {
+        c.avoidedIngredients = [];
+        return c;
+      });
+
+  // Personal profile methods
+  Future<void> setDisplayName(String? name) => _updateAndSave((c) {
+        c.displayName = name?.trim().isEmpty == true ? null : name?.trim();
+        return c;
+      });
+
+  Future<void> setBirthDate(DateTime? date) => _updateAndSave((c) {
+        c.birthDate = date;
+        return c;
+      });
+
+  Future<void> setHeight(double? cm) => _updateAndSave((c) {
+        c.heightCm = cm;
+        return c;
+      });
+
+  Future<void> setWeight(double? kg) => _updateAndSave((c) {
+        c.weightKg = kg;
+        return c;
+      });
+
+  Future<void> setBiologicalSex(BiologicalSex? sex) => _updateAndSave((c) {
+        c.biologicalSexName = sex?.name;
+        return c;
+      });
+
+  Future<void> setActivityLevel(ActivityLevel? level) => _updateAndSave((c) {
+        c.activityLevelName = level?.name;
+        return c;
+      });
+
+  // Medical conditions
+  Future<void> addMedicalCondition(String condition) => _updateAndSave((c) {
+        final trimmed = condition.trim();
+        if (trimmed.isEmpty) return c;
+        final current = c.medicalConditions ?? [];
+        if (!current.contains(trimmed)) {
+          c.medicalConditions = [...current, trimmed];
+        }
+        return c;
+      });
+
+  Future<void> removeMedicalCondition(String condition) => _updateAndSave((c) {
+        final current = c.medicalConditions ?? [];
+        c.medicalConditions = current.where((m) => m != condition).toList();
+        return c;
+      });
+
+  // Allergies
+  Future<void> addAllergy(String allergy) => _updateAndSave((c) {
+        final trimmed = allergy.trim();
+        if (trimmed.isEmpty) return c;
+        final current = c.allergies ?? [];
+        if (!current.contains(trimmed)) {
+          c.allergies = [...current, trimmed];
+        }
+        return c;
+      });
+
+  Future<void> removeAllergy(String allergy) => _updateAndSave((c) {
+        final current = c.allergies ?? [];
+        c.allergies = current.where((a) => a != allergy).toList();
+        return c;
+      });
+
+  // Dietary restrictions
+  Future<void> addDietaryRestriction(String restriction) => _updateAndSave((c) {
+        final trimmed = restriction.trim();
+        if (trimmed.isEmpty) return c;
+        final current = c.dietaryRestrictions ?? [];
+        if (!current.contains(trimmed)) {
+          c.dietaryRestrictions = [...current, trimmed];
+        }
+        return c;
+      });
+
+  Future<void> removeDietaryRestriction(String restriction) => _updateAndSave((c) {
+        final current = c.dietaryRestrictions ?? [];
+        c.dietaryRestrictions = current.where((d) => d != restriction).toList();
+        return c;
+      });
+
+  Future<void> setDietaryRestrictions(List<String> restrictions) => _updateAndSave((c) {
+        c.dietaryRestrictions = restrictions;
         return c;
       });
 }

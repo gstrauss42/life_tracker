@@ -242,3 +242,4 @@ class _LogExerciseDialogState extends State<LogExerciseDialog> {
   }
 }
 
+

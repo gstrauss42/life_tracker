@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/repositories/exercise_repository.dart';
 import '../models/exercise_models.dart';
 import '../services/exercise_service.dart';
+import 'aggregation_provider.dart';
 import 'repository_providers.dart';
 import 'user_config_provider.dart';
 import 'daily_log_provider.dart';
@@ -73,12 +74,16 @@ class ExerciseActivitiesNotifier extends StateNotifier<List<ExerciseActivity>> {
     await _repository.saveActivity(activity);
     _loadToday();
     _updateDailyLog();
+    // Trigger aggregation recomputation in background
+    triggerAggregationRecompute(_ref);
   }
 
   Future<void> removeActivity(String id) async {
     await _repository.deleteActivity(id);
     _loadToday();
     _updateDailyLog();
+    // Trigger aggregation recomputation in background
+    triggerAggregationRecompute(_ref);
   }
 
   /// Update the daily log with total exercise minutes from logged activities
@@ -127,6 +132,9 @@ class WorkoutGenerationNotifier extends StateNotifier<AsyncValue<void>> {
       final config = _ref.read(userConfigProvider);
       final service = _ref.read(exerciseServiceProvider);
       final workoutNotifier = _ref.read(generatedWorkoutProvider.notifier);
+      
+      // Get exercise aggregates for AI context
+      final aggregates = _ref.read(exerciseAggregatesProvider);
 
       final workout = await service.generateWorkout(
         goal: config.fitnessGoal ?? FitnessGoal.stayActive,
@@ -134,6 +142,7 @@ class WorkoutGenerationNotifier extends StateNotifier<AsyncValue<void>> {
         // Use the daily exercise goal for workout duration
         durationMinutes: config.exerciseGoalMinutes,
         userRequest: userRequest,
+        aggregates: aggregates.hasData ? aggregates : null,
       );
 
       await workoutNotifier.setWorkout(workout);

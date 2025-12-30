@@ -1,6 +1,8 @@
 /// Barrel file for all providers
 library;
 
+export 'aggregation_provider.dart';
+export 'analytics_provider.dart';
 export 'repository_providers.dart';
 export 'date_provider.dart';
 export 'theme_provider.dart';

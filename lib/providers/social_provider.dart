@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../models/models.dart';
 import '../services/services.dart';
+import 'aggregation_provider.dart';
 import 'user_config_provider.dart';
 import 'daily_log_provider.dart';
 
@@ -49,8 +50,15 @@ final discoveredPlacesProvider =
 
   final service = ref.read(socialServiceProvider);
   final location = '${config.locationCity}, ${config.locationCountry}';
+  
+  // Get social aggregates for AI context
+  final socialAggregates = ref.read(socialAggregatesProvider);
 
-  return service.discoverPlaces(location: location, category: category);
+  return service.discoverPlaces(
+    location: location,
+    category: category,
+    aggregates: socialAggregates.hasData ? socialAggregates : null,
+  );
 });
 
 /// Provider for discovering places with a custom freeform query
@@ -96,24 +104,32 @@ class SocialActivitiesNotifier extends StateNotifier<List<SocialActivity>> {
   void addActivity(SocialActivity activity) {
     state = [...state, activity];
     _updateDailyLog();
+    // Trigger aggregation recomputation in background
+    triggerAggregationRecompute(ref);
   }
 
   /// Remove an activity by ID
   void removeActivity(String id) {
     state = state.where((a) => a.id != id).toList();
     _updateDailyLog();
+    // Trigger aggregation recomputation in background
+    triggerAggregationRecompute(ref);
   }
 
   /// Update an existing activity
   void updateActivity(SocialActivity activity) {
     state = state.map((a) => a.id == activity.id ? activity : a).toList();
     _updateDailyLog();
+    // Trigger aggregation recomputation in background
+    triggerAggregationRecompute(ref);
   }
 
   /// Clear all activities for today
   void clearActivities() {
     state = [];
     _updateDailyLog();
+    // Trigger aggregation recomputation in background
+    triggerAggregationRecompute(ref);
   }
 
   /// Update the daily log with total social minutes

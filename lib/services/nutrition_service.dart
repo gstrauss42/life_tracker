@@ -409,6 +409,17 @@ Use standard USDA database values. Numbers only, no units in the JSON.
     }
   }
 
+  /// Call AI for meal suggestions - uses nutritionist persona, not JSON mode
+  Future<String> _callAIForSuggestions(String prompt) async {
+    if (provider == 'anthropic') {
+      return _callAnthropicForSuggestions(prompt);
+    } else if (provider == 'deepseek') {
+      return _callDeepSeekForSuggestions(prompt);
+    } else {
+      return _callOpenAIForSuggestions(prompt);
+    }
+  }
+
   Future<String> _callOpenAI(String prompt) async {
     final dio = Dio();
     final response = await dio.post(
@@ -447,6 +458,40 @@ Use standard USDA database values. Numbers only, no units in the JSON.
     return response.data['choices'][0]['message']['content'] as String;
   }
 
+  Future<String> _callOpenAIForSuggestions(String prompt) async {
+    final dio = Dio();
+    final response = await dio.post(
+      'https://api.openai.com/v1/chat/completions',
+      options: Options(
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+        },
+      ),
+      data: {
+        'model': 'gpt-4o-mini',
+        'messages': [
+          {
+            'role': 'system',
+            'content': 'You are a helpful nutritionist. Suggest specific, practical meals based on nutritional needs. Always respond in plain text with numbered meal suggestions. NEVER return JSON.',
+          },
+          {
+            'role': 'user',
+            'content': prompt,
+          },
+        ],
+        'temperature': 0.7,
+        'max_tokens': 1000,
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('OpenAI API error: ${response.statusCode} - ${response.data}');
+    }
+
+    return response.data['choices'][0]['message']['content'] as String;
+  }
+
   Future<String> _callAnthropic(String prompt) async {
     final dio = Dio();
     final response = await dio.post(
@@ -462,6 +507,37 @@ Use standard USDA database values. Numbers only, no units in the JSON.
         'model': 'claude-3-haiku-20240307',
         'max_tokens': 1000,
         'system': 'You are a USDA nutrition database. Return ONLY valid JSON with complete nutrition data. Include ALL vitamins and minerals with accurate non-zero values.',
+        'messages': [
+          {
+            'role': 'user',
+            'content': prompt,
+          },
+        ],
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Anthropic API error: ${response.statusCode} - ${response.data}');
+    }
+
+    return response.data['content'][0]['text'] as String;
+  }
+
+  Future<String> _callAnthropicForSuggestions(String prompt) async {
+    final dio = Dio();
+    final response = await dio.post(
+      'https://api.anthropic.com/v1/messages',
+      options: Options(
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey!,
+          'anthropic-version': '2023-06-01',
+        },
+      ),
+      data: {
+        'model': 'claude-3-haiku-20240307',
+        'max_tokens': 1000,
+        'system': 'You are a helpful nutritionist. Suggest specific, practical meals based on nutritional needs. Always respond in plain text with numbered meal suggestions. NEVER return JSON.',
         'messages': [
           {
             'role': 'user',
@@ -510,6 +586,40 @@ Use standard USDA database values. Numbers only, no units in the JSON.
     }
 
     // DeepSeek uses OpenAI-compatible response format
+    return response.data['choices'][0]['message']['content'] as String;
+  }
+
+  Future<String> _callDeepSeekForSuggestions(String prompt) async {
+    final dio = Dio();
+    final response = await dio.post(
+      'https://api.deepseek.com/v1/chat/completions',
+      options: Options(
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+        },
+      ),
+      data: {
+        'model': 'deepseek-chat',
+        'messages': [
+          {
+            'role': 'system',
+            'content': 'You are a helpful nutritionist. Suggest specific, practical meals based on nutritional needs. Always respond in plain text with numbered meal suggestions. NEVER return JSON.',
+          },
+          {
+            'role': 'user',
+            'content': prompt,
+          },
+        ],
+        'temperature': 0.7,
+        'max_tokens': 1000,
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('DeepSeek API error: ${response.statusCode} - ${response.data}');
+    }
+
     return response.data['choices'][0]['message']['content'] as String;
   }
 
@@ -705,15 +815,14 @@ Use standard USDA database values. Numbers only, no units in the JSON.
       ],
     );
   }
-
-  /// Get AI-generated personalized meal recommendation based on multi-day nutrition patterns
-  Future<String> getAIMealRecommendation(MultiDayNutritionOverview overview, {String? preferences}) async {
-    final suggestions = await getAIMealSuggestions(overview, count: 1, preferences: preferences);
-    return suggestions.isNotEmpty ? suggestions.first : 'Unable to generate recommendation.';
-  }
-
   /// Get multiple AI-generated meal suggestions based on multi-day nutrition patterns
-  Future<List<String>> getAIMealSuggestions(MultiDayNutritionOverview overview, {int count = 4, String? preferences}) async {
+  /// If [aggregates] is provided, includes user eating patterns for better personalization
+  Future<List<String>> getAIMealSuggestions(
+    MultiDayNutritionOverview overview, {
+    int count = 4,
+    String? preferences,
+    NutritionAggregates? aggregates,
+  }) async {
     if (apiKey == null || apiKey!.isEmpty) {
       throw Exception('API key not configured');
     }
@@ -740,13 +849,45 @@ These preferences help personalize HOW you address the nutritional needs. Find a
 ''';
     }
 
+    // Build aggregates context section
+    String aggregatesSection = '';
+    if (aggregates != null && aggregates.hasData) {
+      final buffer = StringBuffer();
+      buffer.writeln('\nUSER EATING PATTERNS (from ${aggregates.daysWithData} days of data):');
+      buffer.writeln('- Average daily calories: ${aggregates.avgCalories.round()} kcal');
+      buffer.writeln('- Average macros: ${aggregates.avgProtein.round()}g protein, ${aggregates.avgCarbs.round()}g carbs, ${aggregates.avgFat.round()}g fat');
+      
+      if (aggregates.topFoods.isNotEmpty) {
+        buffer.writeln('- Common foods they enjoy: ${aggregates.topFoods.take(5).join(', ')}');
+      }
+      
+      if (aggregates.consistentDeficiencies.isNotEmpty) {
+        buffer.writeln('- Consistent deficiencies: ${aggregates.consistentDeficiencies.join(', ')}');
+      }
+      
+      if (aggregates.inferredPreferences.isNotEmpty) {
+        buffer.writeln('- Dietary tendencies: ${aggregates.inferredPreferences.join(', ')}');
+      }
+      
+      buffer.writeln('\nSuggest meals that:');
+      buffer.writeln('1. Address their consistent deficiencies');
+      if (aggregates.topFoods.isNotEmpty) {
+        buffer.writeln('2. Include foods similar to what they already enjoy (${aggregates.topFoods.take(3).join(', ')})');
+      }
+      if (aggregates.inferredPreferences.isNotEmpty) {
+        buffer.writeln('3. Align with their apparent dietary preferences (${aggregates.inferredPreferences.join(', ')})');
+      }
+      
+      aggregatesSection = buffer.toString();
+    }
+
     final prompt = '''
 You're a helpful nutritionist. Based on the user's CURRENT nutrition status today, suggest $count different specific, practical meals or snacks.
 
-$nutritionContext$preferencesSection
+$nutritionContext$preferencesSection$aggregatesSection
 
 PRIMARY GOAL: Address nutritional deficiencies identified above.
-SECONDARY GOAL: Customize suggestions based on user taste preferences (if provided).
+SECONDARY GOAL: Customize suggestions based on user taste preferences and eating patterns (if provided).
 
 CRITICAL RULES:
 - FIRST: Identify which nutrients are lacking and need to be addressed
@@ -772,7 +913,7 @@ Respond in this EXACT format:
 ''';
 
     try {
-      final response = await _callAI(prompt);
+      final response = await _callAIForSuggestions(prompt);
       debugPrint('═══════════════════════════════════════════════════════════');
       debugPrint('MEAL SUGGESTIONS - Raw AI response:');
       debugPrint(response);
@@ -1062,45 +1203,6 @@ Respond with ONLY this JSON format:
     }
   }
   
-  /// Legacy method for single-day recommendations (kept for compatibility)
-  Future<String> getAIMealRecommendationForDay(NutritionSummary summary, {String? preferences}) async {
-    if (apiKey == null || apiKey!.isEmpty) {
-      throw Exception('API key not configured');
-    }
-
-    final deficiencies = summary.getDeficiencies();
-    if (deficiencies.isEmpty) {
-      return "You're doing great! Your nutrition looks balanced today. Keep it up!";
-    }
-
-    final deficiencyList = deficiencies.map((d) => '${d.name}: ${d.current.toStringAsFixed(0)}/${d.recommended.toStringAsFixed(0)} ${d.unit} (${d.percentage.toStringAsFixed(0)}%)').join('\n');
-
-    final prompt = '''
-You're a helpful nutritionist. Suggest ONE specific meal or snack based on today's nutritional gaps.
-
-Today's intake: ${summary.calories.toStringAsFixed(0)} cal, ${summary.protein.toStringAsFixed(0)}g protein, ${summary.fiber.toStringAsFixed(0)}g fiber
-
-Low nutrients today:
-$deficiencyList
-${preferences != null ? '\nDietary preferences: $preferences' : ''}
-
-Requirements:
-- Start with meal name and colon (e.g., "Greek Yogurt Parfait:")
-- 2-3 sentences max
-- Be specific about ingredients
-- No JSON formatting
-
-Example: Spinach & Feta Omelet: A 3-egg omelet with spinach, feta, and tomatoes. Great for iron and calcium.
-''';
-
-    try {
-      final response = await _callAI(prompt);
-      return _cleanMealSuggestion(response);
-    } catch (e) {
-      return 'Unable to generate recommendation.';
-    }
-  }
-
   /// Clean up the meal suggestion response - handle JSON or plain text
   String _cleanMealSuggestion(String response) {
     var cleaned = response.trim();

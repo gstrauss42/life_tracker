@@ -8,6 +8,8 @@ import '../models/exercise_models.dart';
 import 'sources/sources.dart';
 import 'repositories/repositories.dart';
 import 'repositories/exercise_repository.dart';
+import 'repositories/aggregation_repository.dart';
+import 'repositories/analytics_repository.dart';
 
 /// Handles Hive initialization and provides repository instances.
 class StorageInitializer {
@@ -18,6 +20,8 @@ class StorageInitializer {
   static late Box<UserConfig> _userConfigBox;
   static late Box<ExerciseActivity> _exerciseActivitiesBox;
   static late Box<String> _generatedWorkoutBox;
+  static late Box<String> _aggregatesBox;
+  static late Box<String> _analyticsBox;
 
   /// Initialize Hive storage. Call once at app startup.
   static Future<void> init() async {
@@ -51,6 +55,8 @@ class StorageInitializer {
     _userConfigBox = await Hive.openBox<UserConfig>('user_config');
     _exerciseActivitiesBox = await Hive.openBox<ExerciseActivity>('exercise_activities');
     _generatedWorkoutBox = await Hive.openBox<String>('generated_workout');
+    _aggregatesBox = await Hive.openBox<String>('aggregates');
+    _analyticsBox = await Hive.openBox<String>('analytics');
 
     _initialized = true;
   }
@@ -71,6 +77,18 @@ class StorageInitializer {
   static ExerciseRepository get exerciseRepository {
     _ensureInitialized();
     return HiveExerciseRepository(_exerciseActivitiesBox, _generatedWorkoutBox);
+  }
+
+  /// Get the aggregation repository instance.
+  static AggregationRepository get aggregationRepository {
+    _ensureInitialized();
+    return HiveAggregationRepository(_aggregatesBox);
+  }
+
+  /// Get the analytics repository instance.
+  static AnalyticsRepository get analyticsRepository {
+    _ensureInitialized();
+    return HiveAnalyticsRepository(_analyticsBox);
   }
 
   static void _ensureInitialized() {

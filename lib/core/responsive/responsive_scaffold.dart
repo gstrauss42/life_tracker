@@ -166,6 +166,7 @@ class _ResponsiveScaffoldState extends State<ResponsiveScaffold>
                     if (shouldAllowExtend) _buildCollapseButton(colorScheme),
                   ],
                 ),
+                labelType: NavigationRailLabelType.all,
                 destinations: widget.destinations.map((d) {
                   return NavigationRailDestination(
                     icon: Icon(d.icon),

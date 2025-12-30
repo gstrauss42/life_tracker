@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/aggregated_data.dart';
 import '../models/exercise_models.dart';
 
 /// Service for generating AI-powered workouts
@@ -17,11 +18,13 @@ class ExerciseService {
   });
 
   /// Generate a workout based on user profile and optional request
+  /// If [aggregates] is provided, includes user exercise history context for better personalization
   Future<GeneratedWorkout> generateWorkout({
     required FitnessGoal goal,
     required FitnessLevel level,
     required int durationMinutes,
     String? userRequest,
+    ExerciseAggregates? aggregates,
   }) async {
     if (apiKey == null || apiKey!.isEmpty) {
       throw Exception(
@@ -33,6 +36,7 @@ class ExerciseService {
       level: level,
       durationMinutes: durationMinutes,
       userRequest: userRequest,
+      aggregates: aggregates,
     );
 
     try {
@@ -53,10 +57,47 @@ class ExerciseService {
     required FitnessLevel level,
     required int durationMinutes,
     String? userRequest,
+    ExerciseAggregates? aggregates,
   }) {
     final userRequestSection = userRequest != null && userRequest.isNotEmpty
         ? '\nUser request: "$userRequest" - incorporate this into the workout.'
         : '';
+
+    // Build context section from aggregates if available
+    String contextSection = '';
+    if (aggregates != null && aggregates.hasData) {
+      final buffer = StringBuffer();
+      buffer.writeln('\nUser exercise history context:');
+      buffer.writeln('- Total workouts logged: ${aggregates.totalWorkoutsLogged}');
+      buffer.writeln('- Average workout duration: ${aggregates.avgMinutesPerWorkout.round()} min');
+      
+      if (aggregates.preferredWorkoutTypes.isNotEmpty) {
+        buffer.writeln('- Preferred workout types: ${aggregates.preferredWorkoutTypes.join(', ')}');
+      }
+      
+      if (aggregates.activeDaysOfWeek.isNotEmpty) {
+        buffer.writeln('- Most active days: ${aggregates.formatActiveDays()}');
+      }
+      
+      buffer.writeln('- Current exercise streak: ${aggregates.currentStreak} days');
+      buffer.writeln('- Exercise goal hit rate: ${(aggregates.exerciseGoalHitRate * 100).round()}%');
+      
+      buffer.writeln('\nConsider this history when generating the workout:');
+      if (aggregates.preferredWorkoutTypes.isNotEmpty) {
+        buffer.writeln('- Since they prefer ${aggregates.preferredWorkoutTypes.first}, lean into similar exercises');
+      }
+      if (aggregates.currentStreak > 0) {
+        buffer.writeln('- They have a ${aggregates.currentStreak}-day streak - keep the momentum with engaging exercises');
+      }
+      if (aggregates.exerciseGoalHitRate < 0.5) {
+        buffer.writeln('- Goal hit rate is low - suggest something achievable to build consistency');
+      }
+      if (aggregates.avgMinutesPerWorkout > 0 && aggregates.avgMinutesPerWorkout < durationMinutes * 0.7) {
+        buffer.writeln('- Their average workout is shorter than requested - include rest periods or easier modifications');
+      }
+      
+      contextSection = buffer.toString();
+    }
 
     return '''
 Create a home workout with NO equipment required.
@@ -65,7 +106,7 @@ User profile:
 - Goal: ${goal.displayName}
 - Fitness level: ${level.displayName}
 - Target duration: $durationMinutes minutes
-$userRequestSection
+$userRequestSection$contextSection
 
 Requirements:
 - Include 1-2 warm-up exercise(s) marked with isWarmup: true

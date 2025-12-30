@@ -7,8 +7,6 @@ class DateHeader extends StatelessWidget {
     super.key,
     required this.date,
     required this.isToday,
-    required this.onPreviousDay,
-    required this.onNextDay,
     required this.onDatePicked,
     this.showGreeting = true,
     this.compactMode = false,
@@ -16,8 +14,6 @@ class DateHeader extends StatelessWidget {
 
   final DateTime date;
   final bool isToday;
-  final VoidCallback onPreviousDay;
-  final VoidCallback? onNextDay;
   final void Function(DateTime) onDatePicked;
   /// Whether to show greeting text (e.g., "Good Morning")
   final bool showGreeting;
@@ -53,22 +49,7 @@ class DateHeader extends StatelessWidget {
 
     // Use compact vertical layout for mobile
     if (compactMode) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Date text - adaptive format based on width
-          Text(
-            _getDateText(screenWidth),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: colorScheme.onSurface.withValues(alpha: 0.7),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Navigation row - centered
-          _buildCompactNavigation(context, theme, colorScheme),
-        ],
-      );
+      return _buildCompactDateSelector(context, theme, colorScheme, screenWidth);
     }
 
     // Desktop/tablet layout
@@ -91,81 +72,117 @@ class DateHeader extends StatelessWidget {
                   ),
                 ),
               if (showGreeting) const SizedBox(height: 4),
-              Text(
-                screenWidth < 900 
-                    ? DateFormat('MMM d, yyyy').format(date)
-                    : DateFormat('MMMM d, yyyy').format(date),
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
+              // Clickable date with dropdown caret
+              _buildClickableDate(context, theme, colorScheme, screenWidth),
             ],
           ),
         ),
         const SizedBox(width: 8),
-        _buildDateNavigation(context),
+        // Today button on the right
+        if (!isToday) _buildTodayButton(context, theme, colorScheme, screenWidth),
       ],
     );
   }
 
-  Widget _buildCompactNavigation(BuildContext context, ThemeData theme, ColorScheme colorScheme) {
+  /// Builds the compact date selector for mobile (date on left, today button on right)
+  Widget _buildCompactDateSelector(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    double screenWidth,
+  ) {
     return Row(
       children: [
-        // Previous button
-        _CompactNavButton(
-          icon: Icons.chevron_left,
-          onPressed: onPreviousDay,
-          tooltip: 'Previous day',
-        ),
-        const SizedBox(width: 8),
-        // Today/Date button - takes available space
-        Expanded(
-          child: FilledButton.tonal(
-            onPressed: () => _showDatePicker(context),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              isToday ? 'Today' : DateFormat('MMM d').format(date),
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        // Next button
-        _CompactNavButton(
-          icon: Icons.chevron_right,
-          onPressed: onNextDay,
-          tooltip: 'Next day',
-          enabled: onNextDay != null,
-        ),
+        // Clickable date with dropdown caret
+        _buildClickableDate(context, theme, colorScheme, screenWidth),
+        const Spacer(),
+        // Today button
+        if (!isToday) _buildTodayButton(context, theme, colorScheme, screenWidth),
       ],
     );
   }
 
-  Widget _buildDateNavigation(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          onPressed: onPreviousDay,
-          icon: const Icon(Icons.chevron_left),
-          tooltip: 'Previous day',
+  /// Builds the clickable date text with dropdown caret
+  Widget _buildClickableDate(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    double screenWidth,
+  ) {
+    return InkWell(
+      onTap: () => _showDatePicker(context),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _getDateText(screenWidth),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 20,
+              color: colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
+          ],
         ),
-        FilledButton.tonal(
-          onPressed: () => _showDatePicker(context),
-          child: Text(isToday ? 'Today' : DateFormat('MMM d').format(date)),
+      ),
+    );
+  }
+
+  /// Builds the Today button - collapses to icon-only at extremely narrow widths
+  Widget _buildTodayButton(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    double screenWidth,
+  ) {
+    // Only collapse at extremely narrow widths (< 240px) where overflow is likely
+    final showTextLabel = screenWidth >= 240;
+    
+    return FilledButton.tonal(
+      onPressed: () => onDatePicked(DateTime.now()),
+      style: FilledButton.styleFrom(
+        padding: showTextLabel
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+            : const EdgeInsets.all(8),
+        minimumSize: showTextLabel ? const Size(80, 36) : const Size(36, 36),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        IconButton(
-          onPressed: onNextDay,
-          icon: const Icon(Icons.chevron_right),
-          tooltip: 'Next day',
-        ),
-      ],
+        backgroundColor: colorScheme.primaryContainer,
+        foregroundColor: colorScheme.onPrimaryContainer,
+      ),
+      child: showTextLabel
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.refresh_rounded,
+                  size: 18,
+                  color: colorScheme.onPrimaryContainer,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Today',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            )
+          : Icon(
+              Icons.refresh_rounded,
+              size: 18,
+              color: colorScheme.onPrimaryContainer,
+            ),
     );
   }
 
@@ -181,51 +198,3 @@ class DateHeader extends StatelessWidget {
     }
   }
 }
-
-/// Compact navigation button for mobile layout
-class _CompactNavButton extends StatelessWidget {
-  const _CompactNavButton({
-    required this.icon,
-    required this.onPressed,
-    required this.tooltip,
-    this.enabled = true,
-  });
-
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final String tooltip;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: enabled 
-            ? colorScheme.surfaceContainerHighest
-            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: enabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            width: 44,
-            height: 44,
-            alignment: Alignment.center,
-            child: Icon(
-              icon,
-              size: 24,
-              color: enabled 
-                  ? colorScheme.onSurfaceVariant
-                  : colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-

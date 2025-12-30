@@ -5,6 +5,7 @@ import '../../core/responsive/responsive.dart';
 import '../../providers/navigation_provider.dart';
 import '../home/home_screen.dart';
 import '../analytics/analytics_screen.dart';
+import '../profile/profile_screen.dart';
 import '../settings/settings_screen.dart';
 
 /// Main application shell with responsive navigation.
@@ -30,6 +31,11 @@ class _AppShellState extends ConsumerState<AppShell> {
       label: 'Analytics',
     ),
     NavDestination(
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person,
+      label: 'Profile',
+    ),
+    NavDestination(
       icon: Icons.settings_outlined,
       selectedIcon: Icons.settings,
       label: 'Settings',
@@ -52,7 +58,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     return switch (index) {
       0 => HomeScreen(detailController: _detailController),
       1 => const AnalyticsScreen(),
-      2 => const SettingsScreen(),
+      2 => const ProfileScreen(),
+      3 => const SettingsScreen(),
       _ => HomeScreen(detailController: _detailController),
     };
   }

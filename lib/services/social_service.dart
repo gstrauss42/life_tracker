@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../models/aggregated_data.dart';
 import '../models/social_models.dart';
 
 /// Service for social activity discovery.
@@ -91,10 +92,12 @@ Respond with ONLY a JSON array of applicable category names (no explanation, no 
   }
 
   /// Discover places for a specific category using AI with web search
+  /// If [aggregates] is provided, includes user social preferences for better ranking
   Future<List<DiscoveredPlace>> discoverPlaces({
     required String location,
     required SocialCategory category,
     int limit = 10,
+    SocialAggregates? aggregates,
   }) async {
     if (apiKey == null || apiKey!.isEmpty) {
       throw Exception('API key not configured. Please set your API key in Settings.');
@@ -102,9 +105,27 @@ Respond with ONLY a JSON array of applicable category names (no explanation, no 
 
     final categoryInfo = CategoryInfo.getInfo(category);
 
+    // Build context section from aggregates
+    String contextSection = '';
+    if (aggregates != null && aggregates.hasData) {
+      final buffer = StringBuffer();
+      buffer.writeln('\nUser social preferences:');
+      
+      if (aggregates.preferredCategories.isNotEmpty) {
+        buffer.writeln('- Favorite activity types: ${aggregates.preferredCategories.take(3).join(', ')}');
+      }
+      
+      buffer.writeln('- Total activities logged: ${aggregates.totalActivitiesLogged}');
+      buffer.writeln('- Average social time per day: ${aggregates.avgMinutesPerDay.round()} min');
+      
+      buffer.writeln('\nConsider their preferences when ranking results. If they frequently visit certain types of places, prioritize similar vibes.');
+      
+      contextSection = buffer.toString();
+    }
+
     final prompt = '''
 Search for the best ${categoryInfo.displayName.toLowerCase()} in $location.
-
+$contextSection
 Find real, currently operating places. For each place provide:
 - name: The venue name
 - description: Brief description (1-2 sentences)

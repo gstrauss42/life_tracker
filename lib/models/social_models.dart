@@ -489,3 +489,4 @@ class SocialProgress {
   int get remainingMinutes => (goalMinutes - totalMinutes).clamp(0, goalMinutes);
 }
 
+

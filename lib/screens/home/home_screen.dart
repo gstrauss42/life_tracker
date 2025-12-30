@@ -45,8 +45,6 @@ class HomeScreen extends ConsumerWidget {
             DateHeader(
               date: selectedDate,
               isToday: isToday,
-              onPreviousDay: () => ref.read(selectedDateProvider.notifier).previousDay(),
-              onNextDay: isToday ? null : () => ref.read(selectedDateProvider.notifier).nextDay(),
               onDatePicked: (date) => ref.read(selectedDateProvider.notifier).setDate(date),
               // On mobile, hide greeting (shown separately above) and use compact layout
               showGreeting: !isMobile,
@@ -240,12 +238,12 @@ class HomeScreen extends ConsumerWidget {
     // Use full-screen when mobile OR when screen is too narrow for side panel
     final useFullScreen = !Breakpoints.canShowDetailPanel(width);
 
-    void navigateToSettings() {
-      // Navigate to settings and scroll to exercise preferences
+    void navigateToProfile() {
+      // Navigate to profile and scroll to exercise preferences
       // Use post-frame callback to ensure navigation happens after panel closes
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(settingsScrollTargetProvider.notifier).state = SettingsSections.exercisePreferences;
-        ref.read(selectedTabProvider.notifier).state = NavTabs.settings;
+        ref.read(profileScrollTargetProvider.notifier).state = ProfileSections.exercisePreferences;
+        ref.read(selectedTabProvider.notifier).state = NavTabs.profile;
       });
     }
 
@@ -254,7 +252,7 @@ class HomeScreen extends ConsumerWidget {
       return ExercisePanel(
         selectedDate: selectedDate,
         onClose: onClose,
-        onNavigateToSettings: navigateToSettings,
+        onNavigateToSettings: navigateToProfile,
       );
     }
 

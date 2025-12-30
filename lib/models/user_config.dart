@@ -4,6 +4,44 @@ import 'exercise_models.dart';
 
 part 'user_config.g.dart';
 
+/// Biological sex for health calculations
+enum BiologicalSex {
+  male,
+  female,
+  preferNotToSay;
+
+  String get displayName => switch (this) {
+        male => 'Male',
+        female => 'Female',
+        preferNotToSay => 'Prefer not to say',
+      };
+}
+
+/// Activity level for calorie calculations
+enum ActivityLevel {
+  sedentary,
+  lightlyActive,
+  moderatelyActive,
+  veryActive,
+  extraActive;
+
+  String get displayName => switch (this) {
+        sedentary => 'Sedentary',
+        lightlyActive => 'Lightly Active',
+        moderatelyActive => 'Moderately Active',
+        veryActive => 'Very Active',
+        extraActive => 'Extra Active',
+      };
+
+  String get description => switch (this) {
+        sedentary => 'Little or no exercise',
+        lightlyActive => 'Light exercise 1-3 days/week',
+        moderatelyActive => 'Moderate exercise 3-5 days/week',
+        veryActive => 'Hard exercise 6-7 days/week',
+        extraActive => 'Very hard exercise & physical job',
+      };
+}
+
 /// User preferences and daily goals.
 @HiveType(typeId: 2)
 class UserConfig extends HiveObject {
@@ -34,6 +72,18 @@ class UserConfig extends HiveObject {
     this.fitnessGoalName,
     this.fitnessLevelName,
     this.preferredWorkoutDuration,
+    // Food preferences
+    this.avoidedIngredients,
+    // Personal profile fields
+    this.displayName,
+    this.birthDate,
+    this.heightCm,
+    this.weightKg,
+    this.biologicalSexName,
+    this.activityLevelName,
+    this.medicalConditions,
+    this.allergies,
+    this.dietaryRestrictions,
   });
 
   // Daily goals
@@ -115,6 +165,38 @@ class UserConfig extends HiveObject {
   @HiveField(23)
   int? preferredWorkoutDuration; // In minutes
 
+  // Food preferences
+  @HiveField(24)
+  List<String>? avoidedIngredients; // Ingredients the user always wants to avoid
+
+  // Personal profile fields
+  @HiveField(25)
+  String? displayName; // User's display name
+
+  @HiveField(26)
+  DateTime? birthDate; // For age calculation
+
+  @HiveField(27)
+  double? heightCm; // Height in centimeters
+
+  @HiveField(28)
+  double? weightKg; // Weight in kilograms
+
+  @HiveField(29)
+  String? biologicalSexName; // Store enum name as string
+
+  @HiveField(30)
+  String? activityLevelName; // Store enum name as string
+
+  @HiveField(31)
+  List<String>? medicalConditions; // Health conditions
+
+  @HiveField(32)
+  List<String>? allergies; // Food/environmental allergies
+
+  @HiveField(33)
+  List<String>? dietaryRestrictions; // Vegetarian, vegan, kosher, halal, etc.
+
   // Getters for enum conversion
   FitnessGoal? get fitnessGoal => fitnessGoalName != null
       ? FitnessGoal.values.firstWhere(
@@ -129,6 +211,39 @@ class UserConfig extends HiveObject {
           orElse: () => FitnessLevel.beginner,
         )
       : null;
+
+  BiologicalSex? get biologicalSex => biologicalSexName != null
+      ? BiologicalSex.values.firstWhere(
+          (s) => s.name == biologicalSexName,
+          orElse: () => BiologicalSex.preferNotToSay,
+        )
+      : null;
+
+  ActivityLevel? get activityLevel => activityLevelName != null
+      ? ActivityLevel.values.firstWhere(
+          (l) => l.name == activityLevelName,
+          orElse: () => ActivityLevel.moderatelyActive,
+        )
+      : null;
+
+  /// Calculate age from birth date
+  int? get age {
+    if (birthDate == null) return null;
+    final now = DateTime.now();
+    int age = now.year - birthDate!.year;
+    if (now.month < birthDate!.month ||
+        (now.month == birthDate!.month && now.day < birthDate!.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  /// Get BMI if height and weight are set
+  double? get bmi {
+    if (heightCm == null || weightKg == null) return null;
+    final heightM = heightCm! / 100;
+    return weightKg! / (heightM * heightM);
+  }
 
   /// Get formatted location string
   String? get formattedLocation {
@@ -166,6 +281,16 @@ class UserConfig extends HiveObject {
     String? fitnessGoalName,
     String? fitnessLevelName,
     int? preferredWorkoutDuration,
+    List<String>? avoidedIngredients,
+    String? displayName,
+    DateTime? birthDate,
+    double? heightCm,
+    double? weightKg,
+    String? biologicalSexName,
+    String? activityLevelName,
+    List<String>? medicalConditions,
+    List<String>? allergies,
+    List<String>? dietaryRestrictions,
   }) {
     return UserConfig(
       waterGoalLiters: waterGoalLiters ?? this.waterGoalLiters,
@@ -192,6 +317,16 @@ class UserConfig extends HiveObject {
       fitnessGoalName: fitnessGoalName ?? this.fitnessGoalName,
       fitnessLevelName: fitnessLevelName ?? this.fitnessLevelName,
       preferredWorkoutDuration: preferredWorkoutDuration ?? this.preferredWorkoutDuration,
+      avoidedIngredients: avoidedIngredients ?? this.avoidedIngredients,
+      displayName: displayName ?? this.displayName,
+      birthDate: birthDate ?? this.birthDate,
+      heightCm: heightCm ?? this.heightCm,
+      weightKg: weightKg ?? this.weightKg,
+      biologicalSexName: biologicalSexName ?? this.biologicalSexName,
+      activityLevelName: activityLevelName ?? this.activityLevelName,
+      medicalConditions: medicalConditions ?? this.medicalConditions,
+      allergies: allergies ?? this.allergies,
+      dietaryRestrictions: dietaryRestrictions ?? this.dietaryRestrictions,
     );
   }
 }
